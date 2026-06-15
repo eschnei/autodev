@@ -1,0 +1,3 @@
+config/*.json
+!config/deployment.example.json
+.DS_Store

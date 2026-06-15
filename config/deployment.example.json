@@ -1,0 +1,78 @@
+{
+  "client_name": "AcmeCo",
+  "bot_identity": {
+    "name": "autodev-bot",
+    "email": "autodev-bot@example.com"
+  },
+
+  "repo": {
+    "local_path": "/absolute/path/to/client/repo",
+    "url": "https://github.com/AcmeCo/their-repo",
+    "default_branch": "main",
+    "feature_branch_prefix": "feature/",
+    "story_branch_prefix": "autodev"
+  },
+
+  "merge_policy": {
+    "story_to_feature": "squash",
+    "feature_to_main": "merge_commit"
+  },
+
+  "tracker": {
+    "kind": "shortcut",
+    "mcp_url": "https://mcp.shortcut.com/mcp",
+    "workspace": "acmeco",
+    "states": {
+      "prd_review": "PRD Review",
+      "breakdown": "Breakdown",
+      "ready_for_ai_dev": "Ready for AI Dev",
+      "ai_development": "AI Development",
+      "ai_qa": "AI QA",
+      "ready_for_human_review": "Ready for Human Review",
+      "approved_merge": "Approved – Merge",
+      "failed_human_qa": "Failed Human QA",
+      "done": "Done",
+      "blocked": "Blocked – Needs Human Input"
+    },
+    "labels": {
+      "ai_eligible": "ai-eligible",
+      "route_feature": "route:feature",
+      "route_task": "route:task",
+      "route_bug": "route:bug",
+      "risk_classes": ["risk:trivial", "risk:standard", "risk:sensitive"]
+    }
+  },
+
+  "braingrid": {
+    "project_short_id": "PROJ-XX"
+  },
+
+  "execution": {
+    "max_lanes": 5,
+    "tick_interval_minutes": 15,
+    "max_dev_qa_loops": 3,
+    "self_review_rounds": 1
+  },
+
+  "commands": {
+    "install": "meteor npm install",
+    "test": "meteor npm test",
+    "lint": "meteor npm run lint",
+    "build": "meteor build --debug",
+    "app_run": "meteor run",
+    "app_url": "http://localhost:3000"
+  },
+
+  "qa": {
+    "live_browser": "advisory",
+    "e2e_dir": "e2e",
+    "playwright_mcp": true
+  },
+
+  "runner": {
+    "home_dir": "~/autodev",
+    "heartbeat_file": "~/autodev/heartbeat",
+    "rate_limited_file": "~/autodev/rate-limited-until",
+    "logs_dir": "~/autodev/logs"
+  }
+}
