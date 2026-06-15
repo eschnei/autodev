@@ -1,0 +1,25 @@
+{
+  "_comment": "autoDev headless permissions for {{CLIENT_NAME}}. Pre-grants exactly what the loop needs so devloop passes run without prompts (no blanket --dangerously-skip-permissions). The bot pushes feature/story branches only; only humans merge to {{DEFAULT_BRANCH}} (branch protection enforces this independently).",
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)", "Bash(git add:*)", "Bash(git commit:*)",
+      "Bash(git checkout:*)", "Bash(git switch:*)", "Bash(git branch:*)",
+      "Bash(git worktree:*)", "Bash(git diff:*)", "Bash(git log:*)",
+      "Bash(git push origin {{FEATURE_PREFIX}}*)",
+      "Bash(git push origin {{STORY_PREFIX}}/*)",
+      "Bash(git rebase:*)", "Bash(git merge --squash:*)",
+      "Bash({{CMD_INSTALL}})", "Bash({{CMD_TEST}})", "Bash({{CMD_LINT}})",
+      "Bash({{CMD_BUILD}})", "Bash({{CMD_APP_RUN}})",
+      "Bash(braingrid:*)",
+      "Bash(gh pr create:*)", "Bash(gh pr view:*)", "Bash(gh pr comment:*)",
+      "Bash(gh pr checks:*)", "Bash(gh pr merge:*)",
+      "mcp__shortcut__*",
+      "mcp__playwright__*"
+    ],
+    "deny": [
+      "Bash(git push origin {{DEFAULT_BRANCH}}:*)",
+      "Bash(git push --force:*)",
+      "Bash(gh pr merge * --auto:*)"
+    ]
+  }
+}

@@ -65,8 +65,59 @@
 
   "qa": {
     "live_browser": "advisory",
+    "e2e_framework": "cypress",
     "e2e_dir": "e2e",
-    "playwright_mcp": true
+    "live_browser_driver": "playwright_mcp"
+  },
+
+  "review": {
+    "granularity": "per_story",
+    "_granularity_note": "per_story = human reviews each story (calibration). per_feature = stories auto-merge to the feature branch on AI-QA pass; the human acceptance-tests the WHOLE feature and signs off → main (the PM/dev-team model). Start per_story for the first feature, then flip to per_feature.",
+    "auto_merge_to_feature_branch": false,
+    "_auto_merge_note": "true once granularity is per_feature — stories merge to the feature branch without per-story human review (still gated by AI QA + CI; human gate moves to feature acceptance)."
+  },
+
+  "personas": {
+    "_note": "Which agent personas the engine may use (subagent slugs in ~/.claude/agents/), and how it routes work to the best one. Roster + routing are per-client because stacks differ. Specialist QA agents are from the agency-agents library.",
+    "roster": [
+      "product-manager",
+      "project-manager-senior",
+      "software-architect",
+      "backend-architect",
+      "frontend-developer",
+      "architect-ux",
+      "ui-designer",
+      "database-optimizer",
+      "git-workflow-master",
+      "devops-automator",
+      "codebase-onboarding-engineer",
+      "code-reviewer",
+      "evidence-collector",
+      "reality-checker",
+      "test-results-analyzer",
+      "api-tester",
+      "application-security-engineer",
+      "general-purpose"
+    ],
+    "stage_defaults": {
+      "prd": "product-manager",
+      "breakdown": "project-manager-senior"
+    },
+    "dev_routing": [
+      { "match": "server/", "persona": "backend-architect", "why": "Elixir/Phoenix · GraphQL/Absinthe · Ecto" },
+      { "match": "ui/", "persona": "frontend-developer", "why": "React 18 · TypeScript · Apollo · MUI · Formik" },
+      { "match": "schema|migration|ecto|query|index", "persona": "database-optimizer", "why": "DB schema / query work" },
+      { "match": "design|theme|css|component-library", "persona": "architect-ux", "why": "design system / CSS architecture" },
+      { "match": "default", "persona": "general-purpose", "why": "fallback when no clear specialist" }
+    ],
+    "qa_angles": {
+      "_note": "Each story is verified by three independent, fresh-context QA runs (all always run); the live browser check is advisory evidence, never a gate.",
+      "conformance": ["code-reviewer", "test-results-analyzer", "evidence-collector"],
+      "adversarial": ["application-security-engineer", "api-tester"],
+      "regression": ["test-results-analyzer", "reality-checker"],
+      "verdict": "reality-checker",
+      "live_evidence": "evidence-collector"
+    }
   },
 
   "runner": {

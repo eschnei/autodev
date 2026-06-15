@@ -75,6 +75,26 @@ the template and copies it in — nothing is hardcoded.
   seam, and a `risk:` class on every story so auto-merge later is a config
   graduation, not a rebuild.
 
+## Agent roster (agency-agents)
+
+The engine routes work to specialist personas (in `~/.claude/agents/`). QA in
+particular runs on purpose-built agents, not a generalist:
+
+| Pipeline role | Persona |
+|---|---|
+| PRD authoring | product-manager |
+| Breakdown / ticketization | project-manager-senior |
+| Dev — backend / frontend / DB / design | backend-architect · frontend-developer · database-optimizer · architect-ux |
+| QA conformance | code-reviewer · test-results-analyzer · **evidence-collector** (live screenshots) |
+| QA adversarial | application-security-engineer · api-tester |
+| QA regression + verdict | test-results-analyzer · **reality-checker** |
+| Support | software-architect · git-workflow-master · devops-automator · codebase-onboarding-engineer |
+
+Roster + routing live in `config/*.json` (`personas.*`); swap per client/stack.
+
 ## Status
 
-Template v0 (under construction). First deployment: **autoHaven** → HavenConnect.
+Template **v1 — complete and installable**. Skills (intake/prd/breakdown/devloop),
+runner scripts, ops, settings, config + installer all in place and validated.
+First deployment: **autoHaven** → HavenConnect (next: install into a sandbox, run
+the `assignOwner` feature end-to-end, then point at the real monorepo).

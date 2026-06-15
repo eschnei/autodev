@@ -37,6 +37,7 @@ TRACKER_MCP=$(get '.tracker.mcp_url')
 SC_WORKSPACE=$(get '.tracker.workspace')
 MAX_LANES=$(get '.execution.max_lanes')
 TICK_MIN=$(get '.execution.tick_interval_minutes')
+TICK_SECONDS=$(( TICK_MIN * 60 ))
 MAX_LOOPS=$(get '.execution.max_dev_qa_loops')
 SELF_REVIEW=$(get '.execution.self_review_rounds')
 CMD_INSTALL=$(get '.commands.install')
@@ -73,6 +74,7 @@ substitute() {
       -e "s|{{SC_WORKSPACE}}|$SC_WORKSPACE|g" \
       -e "s|{{MAX_LANES}}|$MAX_LANES|g" \
       -e "s|{{TICK_MIN}}|$TICK_MIN|g" \
+      -e "s|{{TICK_SECONDS}}|$TICK_SECONDS|g" \
       -e "s|{{MAX_LOOPS}}|$MAX_LOOPS|g" \
       -e "s|{{SELF_REVIEW}}|$SELF_REVIEW|g" \
       -e "s|{{CMD_INSTALL}}|$CMD_INSTALL|g" \

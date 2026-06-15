@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  autoDev timer for {{CLIENT_NAME}} (macOS launchd). Phase 3 only — install when
+  going 24/7. Install TWO copies: one for the tick, one for the watchdog.
+
+  Install:
+    cp this → ~/Library/LaunchAgents/com.autodev.{{CLIENT_NAME}}.tick.plist
+    (edit Label + ProgramArguments path; for the watchdog copy, point at
+     watchdog.sh and use Label …watchdog)
+    launchctl load ~/Library/LaunchAgents/com.autodev.{{CLIENT_NAME}}.tick.plist
+
+  A laptop running this needs to stay awake (lid open + on power, or
+  `caffeinate -s`). For true 24/7, run on the always-on host.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.autodev.{{CLIENT_NAME}}.tick</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>{{REPO_PATH}}/scripts/autodev/devloop-tick.sh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>RUN_HOME</key>
+    <string>{{RUN_HOME}}</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+
+  <key>StartInterval</key>
+  <integer>{{TICK_SECONDS}}</integer>  <!-- {{TICK_MIN}} min × 60s -->
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>{{RUN_HOME}}/logs/launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{RUN_HOME}}/logs/launchd.err.log</string>
+</dict>
+</plist>
