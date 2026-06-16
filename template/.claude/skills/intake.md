@@ -17,10 +17,30 @@ everything the engine builds has passed through a human at intake.
 
 ## Steps
 
-1. **Route the request.** Classify as:
-   - `route:feature` — a new capability (v1 default; full pipeline).
-   - `route:task` / `route:bug` — *post-v1*; if asked, tell the operator these
-     thin paths aren't built yet and offer to capture it as a feature for now.
+1. **Classify the request — feature, bug, or task.** This is a gate, not a label.
+   - **`route:feature`** — a genuinely *new* capability that does not exist yet.
+     v1 default; full pipeline.
+   - **`route:bug`** — existing behavior is wrong, missing, or broken. Signals:
+     "X is broken / stopped working", "should do Y but does Z", "returns
+     blank / wrong / an error", "regression", "used to work". **Watch for bugs
+     wearing a feature costume:** a request phrased as *"add X"* is a **bug** if
+     X already exists and merely misbehaves. Before accepting any "add X" as a
+     feature, do a **quick code-grounding check** — if the capability is already
+     present in the code but produces the wrong output, it is a bug.
+   - **`route:task`** — mechanical chore (rename, dep bump, config).
+
+   **If it's a bug (or a task) → STOP. Do not draft a brief or PRD.** Tell the
+   operator plainly: *"This looks like a **bug**, not a feature — `<one-line
+   why>`. The engine currently runs the **feature** pipeline only; bugs need
+   reproduction + root-cause, which isn't wired yet, so I've flagged it for human
+   triage rather than guess."* Create the Linear issue with `route:bug`, leave it
+   **without** `ai-eligible` (the devloop will ignore it), and park it in a human
+   state. **Offer an override:** if the operator is sure it's a genuinely new
+   capability, they can confirm and we proceed as a feature.
+
+   > Why this gate exists: a bug routed through the feature pipeline produces a
+   > confident, well-tested change to the wrong problem — or a no-op that *looks*
+   > like progress. Catching it at the door is far cheaper than catching it at QA.
 
 2. **Interview for a complete brief — ask, don't invent.** A good brief needs:
    - **Problem** — what's wrong / missing, and for whom.

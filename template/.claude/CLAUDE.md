@@ -19,6 +19,7 @@ flight. Then route intent:
 | The operator says (any phrasing) | Do this |
 |---|---|
 | "We need to add a feature…" / "new idea for the roadmap" | Run **`/intake`** — interview for problem, solution, users, priority, timeline |
+| "X is broken" / "this should work but doesn't" / "it exports blank / errors" | Run **`/intake`** — it classifies this as a **bug** and flags it. The engine is **feature-only** for now, so bugs are surfaced for human triage (labeled `route:bug`, no `ai-eligible`), **not built**. Offer to capture it; don't run the pipeline. |
 | "Here's the brief for X" | `/intake` → then `/prd` — draft the Requirement, walk them through it |
 | "The PRD looks good" / "approved" | Log **Gate 1** approval → move the epic → run **`/breakdown`** |
 | "What's the status?" / "what happened overnight?" | Read Linear → plain-English report: shipped, in QA, blocked, and whether the engine is rate-limited (paused, auto-resuming at <time>) |
