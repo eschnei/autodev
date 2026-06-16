@@ -33,8 +33,8 @@ STORY_PREFIX=$(get '.repo.story_branch_prefix')
 BOT_NAME=$(get '.bot_identity.name')
 BOT_EMAIL=$(get '.bot_identity.email')
 BG_PROJECT=$(get '.braingrid.project_short_id')
-TRACKER_MCP=$(get '.tracker.mcp_url')
-SC_WORKSPACE=$(get '.tracker.workspace')
+LINEAR_TEAM=$(get '.tracker.team')
+LINEAR_TEAM_KEY=$(get '.tracker.team_key')
 MAX_LANES=$(get '.execution.max_lanes')
 TICK_MIN=$(get '.execution.tick_interval_minutes')
 TICK_SECONDS=$(( TICK_MIN * 60 ))
@@ -70,8 +70,8 @@ substitute() {
       -e "s|{{BOT_NAME}}|$BOT_NAME|g" \
       -e "s|{{BOT_EMAIL}}|$BOT_EMAIL|g" \
       -e "s|{{BG_PROJECT}}|$BG_PROJECT|g" \
-      -e "s|{{TRACKER_MCP}}|$TRACKER_MCP|g" \
-      -e "s|{{SC_WORKSPACE}}|$SC_WORKSPACE|g" \
+      -e "s|{{LINEAR_TEAM}}|$LINEAR_TEAM|g" \
+      -e "s|{{LINEAR_TEAM_KEY}}|$LINEAR_TEAM_KEY|g" \
       -e "s|{{MAX_LANES}}|$MAX_LANES|g" \
       -e "s|{{TICK_MIN}}|$TICK_MIN|g" \
       -e "s|{{TICK_SECONDS}}|$TICK_SECONDS|g" \
@@ -115,12 +115,14 @@ Now the auth-bound manual steps (these can't be automated for you):
   1. BrainGrid project (in $REPO):
        cd "$REPO" && braingrid init      # then set braingrid.project_short_id in the config
 
-  2. Connect the tracker MCP:
-       claude mcp add --transport http shortcut $TRACKER_MCP
-       # then authenticate to the '$SC_WORKSPACE' workspace
+  2. Connect the client's Linear — workspace '$LINEAR_TEAM' (do NOT use any other):
+       - put their Linear API key on disk (gitignored), never paste it in chat:
+         ~/.config/autodev/$CLIENT.linear.token
+       - export LINEAR_API_TOKEN=\$(cat ~/.config/autodev/$CLIENT.linear.token)
+       - (interactive) connect a Linear MCP for their workspace if desired
 
-  3. Create the Shortcut workflow states + labels:
-       see .autodev/ops/shortcut-setup.md
+  3. Create the Linear labels (+ optional custom statuses):
+       see .autodev/ops/linear-setup.md
 
   4. Bot git identity + branch protection (needs repo admin):
        protect '$DEFAULT_BRANCH' so ONLY humans merge; the bot ($BOT_NAME)

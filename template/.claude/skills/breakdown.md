@@ -1,13 +1,13 @@
 ---
 name: breakdown
 description: >
-  Break an approved PRD into Shortcut stories for {{CLIENT_NAME}}. Use after
+  Break an approved PRD into Linear stories for {{CLIENT_NAME}}. Use after
   Gate 1 — when the operator approves the PRD / moves the epic out of PRD Review.
   Runs BrainGrid /breakdown, then maps tasks to stories with persona routing,
   risk class, AI-QA steps, and manual test steps.
 ---
 
-# Breakdown — Requirement → Shortcut stories
+# Breakdown — Requirement → Linear stories
 
 Read `.autodev/deployment.json` for: tracker states/labels, BrainGrid project,
 `personas.dev_routing`, `review.granularity`. Drive this with the
@@ -19,13 +19,13 @@ Read `.autodev/deployment.json` for: tracker states/labels, BrainGrid project,
    <REQ>` → the implementation plan. Both grounded in the codebase via Claude
    Code.
 
-2. **Map each BrainGrid task → one Shortcut story** using the story template
+2. **Map each BrainGrid task → one Linear story** using the story template
    (`.claude/skills/_story-template.md` / the format in CLAUDE.md). Per story set:
    - **Acceptance criteria** (objective, testable — the contract).
    - **AI QA steps** + **manual test steps** (the latter is the human's script
      at acceptance).
    - **Tests required** note — the diff must include tests for the criteria.
-   - **`blocked by` links** for dependencies (Shortcut story links).
+   - **`blocked by` links** for dependencies (Linear story links).
    - **Touched files** — record what the task touches (feeds the lane
      file-overlap guard and the persona routing).
    - **`risk:` class** — `trivial` / `standard` / `sensitive`. Be deliberate:
@@ -47,7 +47,7 @@ Read `.autodev/deployment.json` for: tracker states/labels, BrainGrid project,
 5. **Create the feature branch** `{{FEATURE_PREFIX}}<feature-slug>` from
    `{{DEFAULT_BRANCH}}`. Apply `ai-eligible` to each story (this label — set ONLY
    here — is what makes a story eligible for the devloop; tickets typed directly
-   into Shortcut never get it).
+   into Linear never get it).
 
 6. **Release to dev.** Move stories to `Ready for AI Dev`; set the epic to
    `In Development` **only if the one-feature lock is free** (no other epic is in

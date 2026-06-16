@@ -19,20 +19,38 @@
   },
 
   "tracker": {
-    "kind": "shortcut",
-    "mcp_url": "https://mcp.shortcut.com/mcp",
-    "workspace": "acmeco",
-    "states": {
-      "prd_review": "PRD Review",
-      "breakdown": "Breakdown",
-      "ready_for_ai_dev": "Ready for AI Dev",
-      "ai_development": "AI Development",
-      "ai_qa": "AI QA",
-      "ready_for_human_review": "Ready for Human Review",
-      "approved_merge": "Approved – Merge",
-      "failed_human_qa": "Failed Human QA",
-      "done": "Done",
-      "blocked": "Blocked – Needs Human Input"
+    "kind": "linear",
+    "mcp": "mcp__linear",
+    "_note": "Use the CLIENT's OWN Linear workspace/team (connected via their auth). Never a different workspace.",
+    "team": "{{LINEAR_TEAM}}",
+    "team_key": "{{LINEAR_TEAM_KEY}}",
+    "api_token_env": "LINEAR_API_TOKEN",
+    "mapping": {
+      "feature": "Linear Project",
+      "epic": "Linear Milestone (within the feature's Project)",
+      "story": "Linear Issue (assigned to its milestone)",
+      "dependency": "Linear issue relation (blocks / blocked_by)"
+    },
+    "state_model": "label",
+    "_state_model_note": "Linear MCP creates labels but not custom statuses, so the engine's authoritative pipeline stage is a stage:* LABEL on the issue, mapped to a coarse native status for the human board. If the client adds custom Linear statuses, set state_model to 'status' and fill statuses below.",
+    "stage_labels": {
+      "prd_review": "stage:prd-review",
+      "breakdown": "stage:breakdown",
+      "ready_for_ai_dev": "stage:ready-for-ai-dev",
+      "ai_development": "stage:ai-development",
+      "ai_qa": "stage:ai-qa",
+      "ready_for_human_review": "stage:human-review",
+      "ready_for_human_acceptance": "stage:human-acceptance",
+      "approved_merge": "stage:approved-merge",
+      "failed_human_qa": "stage:failed-human-qa",
+      "done": "stage:done",
+      "blocked": "stage:blocked"
+    },
+    "status_map": {
+      "Backlog": ["prd_review", "breakdown"],
+      "Todo": ["ready_for_ai_dev"],
+      "In Progress": ["ai_development", "ai_qa", "ready_for_human_review", "ready_for_human_acceptance", "approved_merge", "failed_human_qa", "blocked"],
+      "Done": ["done"]
     },
     "labels": {
       "ai_eligible": "ai-eligible",

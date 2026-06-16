@@ -4,13 +4,13 @@ description: >
   The front door for new work on {{CLIENT_NAME}}. Use whenever the operator wants
   to add a feature, fix, or idea to the roadmap — e.g. "we need to add X", "new
   idea for the roadmap", "here's a brief for Y". Routes the request, interviews
-  for anything missing, and creates the Shortcut epic. This is the ONLY way work
+  for anything missing, and creates the Linear epic. This is the ONLY way work
   enters the engine.
 ---
 
 # Intake — the only entry point
 
-New work enters here and nowhere else. A ticket typed directly into Shortcut is
+New work enters here and nowhere else. A ticket typed directly into Linear is
 **inert** (it never gets the `ai-eligible` label, so the devloop ignores it).
 That is deliberate: it's the prompt-injection defense and the guarantee that
 everything the engine builds has passed through a human at intake.
@@ -38,8 +38,8 @@ everything the engine builds has passed through a human at intake.
 3. **Write the brief** to `specs/<feature-slug>/brief.md` in the repo and commit
    it (on a working branch, not `{{DEFAULT_BRANCH}}`).
 
-4. **Create the Shortcut epic** in the `Draft` state (workspace
-   `{{SC_WORKSPACE}}`), titled from the feature, linked to the brief. Apply the
+4. **Create the Linear epic** in the `Draft` state (workspace
+   `{{LINEAR_TEAM}}`), titled from the feature, linked to the brief. Apply the
    `route:feature` label.
 
 5. **Hand off.** Tell the operator the brief is captured and offer to draft the

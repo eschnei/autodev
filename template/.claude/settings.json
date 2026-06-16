@@ -13,7 +13,7 @@
       "Bash(braingrid:*)",
       "Bash(gh pr create:*)", "Bash(gh pr view:*)", "Bash(gh pr comment:*)",
       "Bash(gh pr checks:*)", "Bash(gh pr merge:*)",
-      "mcp__shortcut__*",
+      "mcp__linear__*",
       "mcp__playwright__*"
     ],
     "deny": [

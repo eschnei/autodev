@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # autoDev — dead-man watchdog. Runs on its own timer (e.g. every 15 min).
 # If the heartbeat is stale > 60 min AND we're not in a known rate-limit pause,
-# the engine has stalled — file a Shortcut story so the team sees it where they
+# the engine has stalled — file a Linear story so the team sees it where they
 # already look. No Claude, no email infra.
 set -uo pipefail
 

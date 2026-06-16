@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # autoDev — one heartbeat tick. Fired by the timer ({{TICK_MIN}}-min interval).
-# Stateless: all real state lives in Shortcut + git. Safe to run anytime.
+# Stateless: all real state lives in Linear + git. Safe to run anytime.
 set -uo pipefail
 
 RUN_HOME="${RUN_HOME:-{{RUN_HOME}}}"

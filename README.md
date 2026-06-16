@@ -2,7 +2,7 @@
 
 autoDev is a **reusable, rinse-and-repeat** version of the autonomous 24/7
 development engine. It turns approved PRDs into QA'd, human-reviewable code
-through a ticketing board (Shortcut today, tracker-agnostic by design), driven
+through a ticketing board (Linear today, tracker-agnostic by design), driven
 by Claude Code — and it installs into *any* client repo from a single config
 file.
 
@@ -23,15 +23,15 @@ autoDev/
 │   │   └── skills/
 │   │       ├── intake.md            # plain-English front door → routes intent
 │   │       ├── prd.md               # BrainGrid /specify → Requirement (=PRD)
-│   │       ├── breakdown.md         # BrainGrid /breakdown → Shortcut stories
+│   │       ├── breakdown.md         # BrainGrid /breakdown → Linear stories
 │   │       └── devloop.md           # one autonomous heartbeat pass
 │   ├── scripts/
 │   │   ├── devloop-tick.sh          # timer entry: flock + rate-limit gate + tick
-│   │   ├── watchdog.sh              # dead-man alarm → files a Shortcut story
-│   │   └── notify.sh                # rate-limit pause/resume → Shortcut comment
+│   │   ├── watchdog.sh              # dead-man alarm → files a Linear story
+│   │   └── notify.sh                # rate-limit pause/resume → Linear comment
 │   └── ops/
 │       ├── launchd.plist.template   # macOS timer (tick + watchdog)
-│       └── shortcut-setup.md        # the workflow states + labels to create
+│       └── linear-setup.md        # the workflow states + labels to create
 └── docs/                            # links back to the spec
 ```
 
@@ -40,15 +40,15 @@ autoDev/
 ```bash
 # 1. Copy + fill in the config for this client
 cp config/deployment.example.json config/<client>.json
-$EDITOR config/<client>.json        # repo path, branch, BrainGrid project, Shortcut, commands…
+$EDITOR config/<client>.json        # repo path, branch, BrainGrid project, Linear, commands…
 
 # 2. Render the engine into the target repo's .claude/ + scripts
 ./install.sh config/<client>.json
 
 # 3. Follow the printed manual steps (the auth-bound ones):
 #    - braingrid init            (in the target repo)
-#    - connect the Shortcut MCP  (claude mcp add … + authenticate)
-#    - create the Shortcut workflow states/labels (template/ops/shortcut-setup.md)
+#    - connect the Linear MCP  (claude mcp add … + authenticate)
+#    - create the Linear workflow states/labels (template/ops/linear-setup.md)
 #    - bot git identity + branch protection on the default branch (needs repo admin)
 #    - install the launchd timer (template/ops/launchd.plist.template) — Phase 3 only
 ```

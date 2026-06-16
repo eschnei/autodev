@@ -2,7 +2,7 @@
 
 This repo runs **autoDev**: an autonomous development engine driven by Claude
 Code. You (the operator) talk to it in plain English; it turns approved PRDs
-into QA'd, human-reviewable code through Shortcut, with two human gates.
+into QA'd, human-reviewable code through Linear, with two human gates.
 
 You never need to remember a command. Just say what you want — the routing
 below maps your intent to the right skill. (Slash commands `/intake` `/prd`
@@ -12,7 +12,7 @@ below maps your intent to the right skill. (Slash commands `/intake` `/prd`
 
 ## Concierge — how to respond to the operator
 
-On a new session, greet with a short status snapshot (read from Shortcut): what
+On a new session, greet with a short status snapshot (read from Linear): what
 shipped overnight, what's waiting on them (gates + Blocked questions), what's in
 flight. Then route intent:
 
@@ -21,25 +21,36 @@ flight. Then route intent:
 | "We need to add a feature…" / "new idea for the roadmap" | Run **`/intake`** — interview for problem, solution, users, priority, timeline |
 | "Here's the brief for X" | `/intake` → then `/prd` — draft the Requirement, walk them through it |
 | "The PRD looks good" / "approved" | Log **Gate 1** approval → move the epic → run **`/breakdown`** |
-| "What's the status?" / "what happened overnight?" | Read Shortcut → plain-English report: shipped, in QA, blocked, and whether the engine is rate-limited (paused, auto-resuming at <time>) |
+| "What's the status?" / "what happened overnight?" | Read Linear → plain-English report: shipped, in QA, blocked, and whether the engine is rate-limited (paused, auto-resuming at <time>) |
 | "What do you need from me?" | List Blocked-column questions + cards waiting at gates |
-| "Ticket X works" / "ticket X is broken because…" | Log the **Gate 2** verdict, move the card, post their comment |
+| "Ticket X works" / "ticket X is broken because…" | Log the **Gate 2** verdict, move the issue, post their comment |
 | "Pause everything" | Disable the timer; explain how to resume |
 | Anything ambiguous | Ask a clarifying question — never expect a command name |
 
 **Gates are conversational but real.** Telling the engine "approved" *is* the
-human decision — move the card and write an audit comment
-("Gate 1 approved by <name> via CLI, <date>"). Moving the card directly in
-Shortcut works identically. The engine **never** moves a card across a gate on
+human decision — move the issue and write an audit comment
+("Gate 1 approved by <name> via CLI, <date>"). Moving the issue directly in
+Linear works identically. The engine **never** moves an issue across a gate on
 its own.
 
 ---
 
+## Linear mapping (the engine's vocabulary on Linear)
+
+- **Feature** → Linear **Project**. **Epic** (a parallel lane) → Linear
+  **Milestone** in that project. **Story** → Linear **Issue**. **Dependency** →
+  Linear issue relation (`blocks`/`blocked by`).
+- The engine's **pipeline stage** lives in a `stage:*` **label** on the issue
+  (authoritative), mirrored to a coarse native status for the board. "Move the
+  card / issue to <state>" = set the matching `stage:` label (+ status). Full
+  label list + setup: `.autodev/ops/linear-setup.md`.
+
 ## Non-negotiable principles (apply at every stage)
 
-1. **Shortcut is the only state machine.** Every transition is a Shortcut card
-   move. BrainGrid holds *spec content* (Requirement = PRD, + tasks), never
-   workflow state — its task status is at most a one-way mirror of Shortcut.
+1. **Linear is the only state machine.** Every transition is a Linear issue
+   stage change (the `stage:` label). BrainGrid holds *spec content* (Requirement
+   = PRD, + tasks), never workflow state — its task status is at most a one-way
+   mirror of Linear.
 2. **Two human gates.** Gate 1 = PRD approval. Gate 2 = story review/merge. A
    gate passes only by a human decision.
 3. **Only humans merge to `{{DEFAULT_BRANCH}}`.** The bot pushes
@@ -79,7 +90,7 @@ its own.
   `{{STORY_PREFIX}}/sc-<story-id>/<slug>` → draft PR into the feature branch.
 - Merge: story → feature = **{{MERGE_S2F}}**; feature → `{{DEFAULT_BRANCH}}` =
   **{{MERGE_F2M}}** (human-merged).
-- BrainGrid project: **{{BG_PROJECT}}**. Shortcut workspace: **{{SC_WORKSPACE}}**.
+- BrainGrid project: **{{BG_PROJECT}}**. Linear workspace: **{{LINEAR_TEAM}}**.
 
 ## Coding standards
 

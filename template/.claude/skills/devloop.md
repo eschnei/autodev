@@ -3,7 +3,7 @@ name: devloop
 description: >
   One autonomous heartbeat pass of the {{CLIENT_NAME}} dev engine. Invoked by the
   timer (claude -p "/devloop") or manually to advance work. Stateless and
-  idempotent — reads all state from Shortcut + git, does one bounded unit of
+  idempotent — reads all state from Linear + git, does one bounded unit of
   work, writes results back, exits. Honors the per_story / per_feature review
   toggle.
 ---
@@ -30,7 +30,7 @@ For each epic lane (≤ `max_lanes`), pick the oldest story that is:
   v1 — a dependent waits for its blocker's code to be on the feature branch), **and**
 - its touched-files set doesn't overlap any in-flight story in any lane.
 
-None eligible anywhere → exit (Blocked stories are visible on the board).
+None eligible anywhere → exit (Blocked stories are visible on Linear).
 
 ## 3 · Develop (per selected story)
 - Spawn the story's **`agent:` persona** (from breakdown / `dev_routing`) as the
@@ -112,5 +112,5 @@ When all of the epic's stories are merged into the feature branch and it's green
 - Release the one-feature lock → next queued epic.
 
 ## 9 · Exit
-All state is back in Shortcut + git. Post a one-line audit comment per action.
+All state is back in Linear + git. Post a one-line audit comment per action.
 Next tick starts clean.

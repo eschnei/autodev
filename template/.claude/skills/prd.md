@@ -34,7 +34,7 @@ states, BrainGrid project). Drive this with the **product-manager** persona
    `/build <REQ>` and commit its markdown to `specs/<feature-slug>/prd.md` for
    versioning (on a working branch, never the default branch).
 
-5. **Move to Gate 1.** Set the Shortcut epic to `PRD Review`, linked to the
+5. **Move to Gate 1.** Set the Linear epic to `PRD Review`, linked to the
    Requirement. **Stop.** Tell the operator the PRD is ready and summarize it in
    plain English for their review. Do not run breakdown until the operator
    approves (moves the epic out of PRD Review, or says "approved").
