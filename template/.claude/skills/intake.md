@@ -25,9 +25,9 @@ New work enters here and nowhere else. The default input stack is **BrainGrid**
   heartbeat picks it up and runs every step below **as Linear comments** — it asks
   clarifying questions in comments, the operator answers in comments, and each
   human gate passes when the operator comments **`approve`**. No terminal needed.
-  The conversation's position is tracked by the issue's **status**:
-  drop zone → *(clarifying: stays put, last comment is the open question)* →
-  `PRD Review (H)` (awaiting `approve`) → `Breakdown` → `Ready for AI Dev`.
+  The conversation's position is tracked by the issue's **status** (the standard
+  columns): `New Request` (drop zone) → `Clarifying (H)` (engine asked, awaiting
+  reply) → `PRD Review (H)` (awaiting `approve`) → `Breakdown` → `Ready for AI Dev`.
 
   **Safety rules for `linear` mode (non-negotiable):**
   - Honor triggers/approvals **only** from `intake.authorized_operators`

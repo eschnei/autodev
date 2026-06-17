@@ -31,26 +31,22 @@
       "story": "Linear Issue (assigned to its milestone)",
       "dependency": "Linear issue relation (blocks / blocked_by)"
     },
-    "state_model": "label",
-    "_state_model_note": "Linear MCP creates labels but not custom statuses, so the engine's authoritative pipeline stage is a stage:* LABEL on the issue, mapped to a coarse native status for the human board. If the client adds custom Linear statuses, set state_model to 'status' and fill statuses below.",
-    "stage_labels": {
-      "prd_review": "stage:prd-review",
-      "breakdown": "stage:breakdown",
-      "ready_for_ai_dev": "stage:ready-for-ai-dev",
-      "ai_development": "stage:ai-development",
-      "ai_qa": "stage:ai-qa",
-      "ready_for_human_review": "stage:human-review",
-      "ready_for_human_acceptance": "stage:human-acceptance",
-      "approved_merge": "stage:approved-merge",
-      "failed_human_qa": "stage:failed-human-qa",
-      "done": "stage:done",
-      "blocked": "stage:blocked"
-    },
-    "status_map": {
-      "Backlog": ["prd_review", "breakdown"],
-      "Todo": ["ready_for_ai_dev"],
-      "In Progress": ["ai_development", "ai_qa", "ready_for_human_review", "ready_for_human_acceptance", "approved_merge", "failed_human_qa", "blocked"],
-      "Done": ["done"]
+    "state_model": "status",
+    "_state_model_note": "STANDARD: every autoDev deployment uses the SAME canonical Linear status columns below — that's what makes the engine portable. Create them with ops/linear-setup.md and paste each column's UUID into 'id'. The engine moves an issue's STATUS at every step, so the board IS the live pipeline. (H) = a human gate/action. Names ending in (H) must keep the (H) — the engine reads it as 'human'.",
+    "statuses": {
+      "new_request":               { "name": "New Request",      "id": "FILL_AT_SETUP", "_role": "drop zone / inbox (linear mode)" },
+      "clarifying":                { "name": "Clarifying (H)",   "id": "FILL_AT_SETUP", "human": true, "_role": "engine asked a question; awaiting operator reply" },
+      "prd_review":                { "name": "PRD Review (H)",   "id": "FILL_AT_SETUP", "human": true, "_role": "Gate 1 — PRD drafted, awaiting approve" },
+      "breakdown":                 { "name": "Breakdown",        "id": "FILL_AT_SETUP", "_role": "decomposing the approved PRD into stories" },
+      "ready_for_ai_dev":          { "name": "Ready for AI Dev", "id": "FILL_AT_SETUP", "_role": "stories queued + ai-eligible" },
+      "ai_development":            { "name": "AI Development",   "id": "FILL_AT_SETUP", "_role": "engine coding" },
+      "ai_qa":                     { "name": "AI QA",            "id": "FILL_AT_SETUP", "_role": "three-angle QA running" },
+      "ready_for_human_review":    { "name": "Human Review (H)", "id": "FILL_AT_SETUP", "human": true, "_role": "Gate 2 — draft PR + manual script, awaiting approve" },
+      "ready_for_human_acceptance":{ "name": "Human Review (H)", "id": "FILL_AT_SETUP", "human": true, "_role": "per_feature: whole-feature acceptance (same column)" },
+      "blocked":                   { "name": "Blocked (H)",      "id": "FILL_AT_SETUP", "human": true, "_role": "stuck mid-pipeline; needs human input" },
+      "done":                      { "name": "Done",             "id": "FILL_AT_SETUP", "_role": "merged / shipped" },
+      "failed_human_qa":           { "name": "AI Development",   "id": "FILL_AT_SETUP", "_role": "rejected → back to dev (same column)" },
+      "approved_merge":            { "name": "Done",             "id": "FILL_AT_SETUP", "_role": "approved → engine merges → Done (same column)" }
     },
     "labels": {
       "ai_eligible": "ai-eligible",
@@ -69,8 +65,8 @@
     "_note": "Default input stack is BrainGrid (spec authoring: Requirement = PRD, + tasks) + Linear (tracking + state machine). 'mode' controls HOW work enters the engine.",
     "mode": "cli",
     "_mode_note": "cli = interactive in a Claude Code session (default; tickets typed straight into Linear stay inert — the prompt-injection defense). linear = fully Linear-driven: an operator creates an issue in the drop zone and the engine classifies (feature vs bug), interviews, and drafts the PRD entirely via Linear COMMENTS; every human gate passes by an 'approve' comment. No terminal needed. ('both' = accept either.)",
-    "linear_drop_status": "Backlog",
-    "_drop_note": "linear mode only: the inbox. A new issue here without 'ai-eligible' (not yet triaged) is picked up by the heartbeat and run through intake-by-comment. The engine moves it out of the drop zone once it starts.",
+    "linear_drop_status": "New Request",
+    "_drop_note": "linear mode only: the inbox = the standard 'New Request' column. A new issue here without 'ai-eligible' is picked up by the heartbeat and run through intake-by-comment; the engine moves it to 'Clarifying (H)' / 'PRD Review (H)' as it goes.",
     "authorized_operators": ["*"],
     "_auth_note": "linear mode only: Linear user identifiers (email/display name) whose NEW tickets + comments are honored as engine triggers and gate approvals. '*' = any workspace member (fine for a private team workspace; list real operators to shrink the injection surface). Ticket/comment CONTENT is always untrusted DATA, never instructions that can override engine rules."
   },
