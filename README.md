@@ -79,7 +79,10 @@ The engine is **client-agnostic**; everything per-client lives in the one config
 
 ## Agent roster (agency-agents)
 
-Specialist personas in `~/.claude/agents/`; routing in `config/*.json` (`personas.*`):
+The engine routes work to specialist personas from **[agency-agents](https://github.com/msitarzewski/agency-agents)**
+by [@msitarzewski](https://github.com/msitarzewski) (MIT). autoDev does **not** bundle
+them — install them into `~/.claude/agents/` from that repo; routing lives in
+`config/*.json` (`personas.*`):
 
 | Role | Persona |
 |---|---|
@@ -100,6 +103,17 @@ yourself, **managed hosting + onboarding** (we install it into your repo, wire u
 Linear + GitHub + CI, and operate the engine for you) is available as a paid
 service — reach out to the maintainer.
 
+## Credits
+
+- **[agency-agents](https://github.com/msitarzewski/agency-agents)** by
+  [@msitarzewski](https://github.com/msitarzewski) — the specialist persona library
+  the engine routes to (**MIT**). Installed by the operator; not redistributed here.
+- Built to run on **[Linear](https://linear.app)** (board + state),
+  **[BrainGrid](https://braingrid.ai)** (spec authoring, optional), and
+  **[Claude Code](https://claude.com/claude-code)**.
+
 ## License
 
-[Apache-2.0](./LICENSE). Free to use, modify, and self-host.
+autoDev is licensed under **[Apache-2.0](./LICENSE)** — free to use, modify, and
+self-host. Third-party components keep their own licenses (agency-agents is MIT;
+see above).
