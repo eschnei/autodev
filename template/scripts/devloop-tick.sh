@@ -7,8 +7,14 @@ RUN_HOME="${RUN_HOME:-{{RUN_HOME}}}"
 REPO="{{REPO_PATH}}"
 mkdir -p "$RUN_HOME/logs"
 
-exec 9>"$RUN_HOME/devloop.lock"
-flock -n 9 || exit 0                 # previous tick still running — skip, don't stack
+# Single-flight lock — portable (macOS has no flock). A stale lock from a killed
+# tick self-clears: if the recorded PID is no longer alive, we take the lock.
+LOCK="$RUN_HOME/devloop.lock"
+if [[ -f "$LOCK" ]] && kill -0 "$(cat "$LOCK" 2>/dev/null)" 2>/dev/null; then
+  exit 0                             # previous tick still running — skip, don't stack
+fi
+echo $$ > "$LOCK"
+trap 'rm -f "$LOCK"' EXIT
 touch "$RUN_HOME/heartbeat"          # prove the runner is alive (even while paused)
 
 # --- rate-limit gate: if a reset time is recorded and still ahead, no-op ---
