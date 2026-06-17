@@ -15,9 +15,13 @@ Read `.autodev/deployment.json` for: tracker states/labels, BrainGrid project,
 
 ## Steps
 
-1. **BrainGrid breakdown.** Run `/breakdown <REQ>` → AI-ready tasks; `/build
-   <REQ>` → the implementation plan. Both grounded in the codebase via Claude
-   Code.
+1. **Decompose the PRD into tasks** (BrainGrid preferred, agent fallback — mirror
+   `braingrid.enabled` / availability from `/prd`):
+   - **(BrainGrid)** Run `/breakdown <REQ>` → AI-ready tasks; `/build <REQ>` → the
+     implementation plan. Both grounded in the codebase via Claude Code.
+   - **(Fallback)** **project-manager-senior** decomposes the PRD into the same
+     AI-ready tasks directly, grounded in the codebase — coherent epics, small
+     single-purpose tasks, explicit dependencies.
 
 2. **Build the Linear hierarchy** (this is where the feature fans out — *after*
    Gate 1, never before). Per the mapping:

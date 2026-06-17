@@ -60,6 +60,8 @@
   },
 
   "braingrid": {
+    "enabled": true,
+    "_enabled_note": "PREFERRED. true = author the PRD as a BrainGrid Requirement + /breakdown tasks. false (or BrainGrid unavailable / over usage limit) = fall back to the product-manager + project-manager-senior personas authoring the PRD + breakdown directly. The engine auto-falls-back on a runtime BrainGrid error.",
     "project_short_id": "PROJ-XX"
   },
 

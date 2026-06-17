@@ -61,6 +61,11 @@ the template and copies it in — nothing is hardcoded.
 
 - **The tracker is the only state machine** — every transition is a card move.
   BrainGrid holds spec content (Requirement = PRD + tasks), never workflow state.
+- **Spec tooling: BrainGrid preferred, agent fallback** — we support and prefer
+  **BrainGrid** for authoring the PRD + breakdown (`braingrid.enabled: true`). When
+  BrainGrid is unavailable (over a usage limit, offline, or `enabled: false`), the
+  engine **falls back** to the **product-manager** + **project-manager-senior**
+  personas authoring the PRD and breakdown directly — same structure, same gates.
 - **Two human gates** — PRD approval (Gate 1), story review (Gate 2) — and **only
   humans merge to the default branch** (branch protection, not trust).
 - **One feature at a time, parallel epic lanes inside it**; v1 = no stacked
