@@ -99,6 +99,11 @@ its own.
 - Merge: story → feature = **{{MERGE_S2F}}**; feature → `{{DEFAULT_BRANCH}}` =
   **{{MERGE_F2M}}** (human-merged).
 - BrainGrid project: **{{BG_PROJECT}}**. Linear workspace: **{{LINEAR_TEAM}}**.
+- **Linear ops — always use the helper, never hand-rolled curl:**
+  `node scripts/autodev/linear.mjs <move|comment|create-issue|create-project|create-milestone|state-id|whoami|doctor> …`
+  (robust retry/backoff; resolves stage keys + identifiers from `.autodev/deployment.json`).
+- **Preflight before a run:** `scripts/autodev/doctor.sh` — validates tools, token, and
+  config status ids against live Linear. Fix any ✗ before proceeding.
 
 ## Coding standards
 

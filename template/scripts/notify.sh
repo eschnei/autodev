@@ -1,21 +1,19 @@
 #!/usr/bin/env bash
 # autoDev — surface engine state to the team via a Linear issue.
-# No Claude: direct Linear GraphQL API (curl). Linear is the dashboard.
+# Uses the linear.mjs helper (robust: retry/backoff, reads .autodev/deployment.json).
 #
 # Usage:
 #   notify.sh limited <reset_epoch>   # engine hit a usage limit, auto-resuming
 #   notify.sh resumed                 # engine resumed after a rate-limit pause
 #   notify.sh stalled  <age_seconds>  # watchdog: heartbeat went stale
 #
-# Requires (on the runner host, kept OFF the chat / out of git):
-#   LINEAR_API_TOKEN   the client's Linear API key
-#   LINEAR_TEAM_ID     the team UUID issues are filed under ('{{LINEAR_TEAM}}')
+# Token (kept OFF chat / out of git): $LINEAR_API_TOKEN or
+#   ~/.config/autodev/<client>.linear.token  (linear.mjs resolves it)
 set -uo pipefail
 
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export AUTODEV_CONFIG="$(cd "$HERE/../.." && pwd)/.autodev/deployment.json"
 KIND="${1:-}"
-TOKEN="${LINEAR_API_TOKEN:-}"
-TEAM_ID="${LINEAR_TEAM_ID:-}"
-API="https://api.linear.app/graphql"
 LOG="${RUN_HOME:-{{RUN_HOME}}}/logs/notify.log"
 
 ts() { date "+%Y-%m-%d %H:%M:%S"; }
@@ -34,16 +32,5 @@ case "$KIND" in
 esac
 
 log "$TITLE"
-
-if [[ -z "$TOKEN" || -z "$TEAM_ID" ]]; then
-  log "missing LINEAR_API_TOKEN/LINEAR_TEAM_ID — logged locally only"; exit 0
-fi
-
-# Linear personal API key goes in the Authorization header verbatim (no "Bearer").
-QUERY=$(jq -n --arg t "$TITLE" --arg team "$TEAM_ID" \
-  '{query:"mutation($i:IssueCreateInput!){issueCreate(input:$i){success issue{identifier}}}",
-    variables:{i:{teamId:$team, title:$t}}}')
-curl -s -X POST "$API" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: $TOKEN" \
-  -d "$QUERY" >> "$LOG" 2>&1 || log "linear post failed"
+# linear.mjs files the issue (retry/backoff); always keep the local log as a fallback.
+node "$HERE/linear.mjs" create-issue --title "$TITLE" >> "$LOG" 2>&1 || log "linear post failed (logged locally only)"

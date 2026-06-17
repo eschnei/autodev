@@ -97,8 +97,8 @@ substitute
 # ---- install into the target repo -------------------------------------------
 mkdir -p "$REPO/.claude" "$REPO/scripts/autodev"
 cp -R "$TMP/.claude/." "$REPO/.claude/"
-cp "$TMP/scripts/"*.sh "$REPO/scripts/autodev/"
-chmod +x "$REPO/scripts/autodev/"*.sh
+cp "$TMP/scripts/"* "$REPO/scripts/autodev/"
+chmod +x "$REPO/scripts/autodev/"*.sh "$REPO/scripts/autodev/"*.mjs 2>/dev/null || true
 mkdir -p "$REPO/.autodev/ops"
 cp -R "$TMP/ops/." "$REPO/.autodev/ops/"
 cp "$CONFIG" "$REPO/.autodev/deployment.json"
