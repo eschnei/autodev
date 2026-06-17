@@ -18,6 +18,17 @@ Read `.autodev/deployment.json` for: tracker states/labels, `execution.*`
 > The rate-limit gate, flock, and heartbeat touch are handled by the wrapper
 > (`scripts/autodev/devloop-tick.sh`). This skill is the work of one pass.
 
+> **Every stage transition below is a REAL board move** — make it with the helper:
+> `node scripts/autodev/linear.mjs move <issue> <stage_key>` (keys: `ai_development`,
+> `ai_qa`, `ready_for_human_review`, `blocked`, `done`, …). Moving the card at each
+> step is what makes the board a live dashboard for non-technical operators — never
+> jump a card straight from `ai_development` to `done`.
+>
+> **Reconcile first.** At the start of each tick, fix any card whose status doesn't
+> match its real position (dev finished but card still in `ai_development` → `ai_qa`;
+> a story already merged but still "in flight" → `done`). Idempotent — a dropped
+> move self-heals on the next tick.
+
 ## 0 · Front half — Linear-driven intake (only if `intake.mode` is `linear`/`both`)
 Skip this whole section when `intake.mode` is `cli`. When active, each tick also
 advances the front half **through Linear comments** (no human terminal). Honor
@@ -57,6 +68,7 @@ For each epic lane (≤ `max_lanes`), pick the oldest story that is:
 None eligible anywhere → exit (Blocked stories are visible on Linear).
 
 ## 3 · Develop (per selected story)
+- **Move the story → `ai_development`** (helper) before work starts.
 - Spawn the story's **`agent:` persona** (from breakdown / `dev_routing`) as the
   dev subagent, in its **own git worktree** on a story branch
   `{{STORY_PREFIX}}/sc-<id>/<slug>` cut from feature-branch HEAD. Fresh context;
@@ -76,7 +88,7 @@ criterion and fixes gaps. **If it surfaces a requirements gap** (story ambiguous
 - Missing human-only setup (env var, key, shared-DB migration) → `Blocked` with
   the exact ask.
 Then commit to the story branch (`[sc-<id>]` in the message) and open/update a
-**draft PR → feature branch**. Story → `AI QA`.
+**draft PR → feature branch**. **Move the story → `ai_qa`** (helper).
 
 ## 6 · AI QA — three angles (all always run), live is advisory
 Spawn **fresh, independent** reviewer contexts from `personas.qa_angles` — never
@@ -101,24 +113,32 @@ we hallucinate this?":
 
 **Outcomes:**
 - **Gating pass + CI green** → see §7 (granularity decides what happens next).
-- **A gating check fails** (real defect) → `AI Development` with findings; retry,
-  bounded at `max_dev_qa_loops`, then `Blocked` with a summary.
-- **Can't evaluate** (criteria missing/ambiguous) → `Blocked` immediately with the
+- **A gating check fails** (real defect) → **move the story back to `ai_development`**
+  (helper) with the specific findings posted as a comment; the dev persona fixes;
+  re-run §3–§6. **Loop until it passes — there is NO fixed cap on retries while the
+  dev is making progress.** The only safety is a **stuck-detector** (not a count of
+  successes): if QA returns the *same* failures with *no diff progress* across passes,
+  the dev isn't getting anywhere → move to `blocked` (Blocked (H)) with the specific
+  question. This is the same "ask, don't invent / I'm stuck, need a human" path.
+  Escalate after `execution.max_dev_qa_loops` **consecutive no-progress** passes
+  (genuine progress resets the counter). A failing pass that *changed* the diff and
+  *fixed at least one* prior failure is progress — keep going.
+- **Can't evaluate** (criteria missing/ambiguous) → `blocked` immediately with the
   question (not a fail to retry, never a guess).
 
 ## 7 · Advance — per_story vs per_feature  ⟵ the review toggle
 Read `review.granularity`:
 
-- **`per_story`** (calibration): story → `Ready for Human Review` with the 3 QA
-  reports, live screenshots/flags, and the manual test script. 🚦 **Gate 2 per
-  story** — a human reviews this story's draft PR. On approval the engine
-  squash-merges it into the feature branch.
+- **`per_story`** (calibration): **move the story → `ready_for_human_review`**
+  (helper) with the 3 QA reports, live screenshots/flags, and the manual test
+  script. 🚦 **Gate 2 per story** — a human reviews this story's draft PR. On
+  approval the engine squash-merges it into the feature branch and moves it → `done`.
 
 - **`per_feature`** (the PM/dev-team model): the engine **squash-merges the story
   into the feature branch automatically** (no per-story human review — still
-  gated by the AI QA + CI above). Story → `Done (on branch)`. The human gate
-  moves to feature acceptance (§8). Requires `review.auto_merge_to_feature_branch:
-  true`.
+  gated by the AI QA + CI above), then **moves the story → `done`**. The human
+  gate moves to feature acceptance (§8). Requires
+  `review.auto_merge_to_feature_branch: true`.
 
 In **both** modes nothing reaches `{{DEFAULT_BRANCH}}` without a human — branch
 protection still enforces that.
