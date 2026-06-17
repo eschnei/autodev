@@ -86,11 +86,15 @@ The steps below are identical in both modes — only the *medium* differs
 3. **Write the brief** to `specs/<feature-slug>/brief.md` in the repo and commit
    it (on a working branch, not `{{DEFAULT_BRANCH}}`).
 
-4. **Create the Linear feature-request issue** in `New Request` (workspace
-   `{{LINEAR_TEAM}}`), titled from the feature, linked to the brief. Apply the
-   `route:feature` label. This single issue carries the feature through the front
-   half (New Request → Clarifying (H) → PRD Review (H)); at `/breakdown` it's
-   promoted into a Project (feature) with Milestones (epics) + child story Issues.
+4. **Create the feature** (per `tracker.hierarchy` — see CLAUDE.md):
+   - **`issue` (default):** create a **feature ISSUE** in `New Request` (team
+     `{{LINEAR_TEAM}}`), titled from the feature, linked to the brief, labeled
+     `route:feature`. It carries the feature through the front half (New Request →
+     Clarifying (H) → PRD Review (H)); at `/breakdown` a Project + Milestones are
+     added to group its stories.
+   - **`project` (opt-in):** create a **Linear Project** (the feature) and set its
+     project-status to `new_request` (`linear.mjs set-project-status`). The gates
+     ride project statuses; stories are created at `/breakdown`.
 
 5. **Hand off.** Tell the operator the brief is captured and offer to draft the
    PRD next (the `/prd` skill turns this into a BrainGrid Requirement for their

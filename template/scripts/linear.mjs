@@ -165,6 +165,24 @@ const cmds = {
     if (!d.projectMilestoneCreate.success) die('create-milestone failed');
     console.log(`${d.projectMilestoneCreate.projectMilestone.id}\t${d.projectMilestoneCreate.projectMilestone.name}`);
   },
+  // ---- hierarchy: "project" mode (org-level project statuses for feature gates) ----
+  async 'set-project-status'(token, cfg, a) {
+    const ps = cfg.tracker?.project_statuses?.[a[1]];
+    if (!ps?.id || String(ps.id).startsWith('FILL')) die(`no project status id for "${a[1]}" (project mode not set up?)`);
+    const d = await gql(token, 'mutation($id:String!,$i:ProjectUpdateInput!){projectUpdate(id:$id,input:$i){success project{name}}}',
+      { id: a[0], i: { statusId: ps.id } });
+    if (!d.projectUpdate.success) die('set-project-status failed');
+    console.log(`project ${d.projectUpdate.project.name} -> ${ps.name}`);
+  },
+  async 'create-project-status'(token, cfg, a) { // org-level; used by install.sh in project mode
+    const f = flags(a);
+    if (!f.name || !f.type) die('create-project-status needs --name and --type (backlog|planned|started|completed|canceled)');
+    const input = { name: f.name, type: f.type, color: f.color || '#95a2b3' };
+    if (f.position) input.position = Number(f.position);
+    const d = await gql(token, 'mutation($i:ProjectStatusCreateInput!){projectStatusCreate(input:$i){success projectStatus{id name}}}', { i: input });
+    if (!d.projectStatusCreate.success) die('create-project-status failed');
+    console.log(`${d.projectStatusCreate.projectStatus.id}\t${d.projectStatusCreate.projectStatus.name}`);
+  },
 };
 
 const [cmd, ...rest] = process.argv.slice(2);

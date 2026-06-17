@@ -24,12 +24,12 @@ Read `.autodev/deployment.json` for: tracker states/labels, BrainGrid project,
      single-purpose tasks, explicit dependencies.
 
 2. **Build the Linear hierarchy** (this is where the feature fans out — *after*
-   Gate 1, never before). Per the mapping:
-   - **Feature → a Linear Project.** Create the Project for this feature; link the
-     approved PRD (BrainGrid Requirement) + the original feature-request issue to it.
+   Gate 1, never before). Per `tracker.hierarchy`:
+   - **The Project (feature):** in **`issue` mode**, *create* a Project to group the
+     stories and link it to the feature issue + PRD. In **`project` mode**, the
+     Project already exists (from intake) — set its project-status to `in_development`.
    - **Epic → a Milestone** in that Project. Group the BrainGrid tasks into a small
-     number of coherent epics and create one Milestone each (these are the parallel
-     lanes the devloop runs).
+     number of coherent epics; one Milestone each (the parallel lanes the devloop runs).
    - **Story/task → an Issue** in the Project, assigned to its Milestone (next step).
 
 3. **Map each BrainGrid task → one Linear story (Issue)** using the story template

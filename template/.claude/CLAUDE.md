@@ -45,13 +45,24 @@ its own.
 
 ## Linear mapping (the engine's vocabulary on Linear)
 
-- **Feature** → Linear **Project**. **Epic** (a parallel lane) → Linear
-  **Milestone** in that project. **Story** → Linear **Issue**. **Dependency** →
-  Linear issue relation (`blocks`/`blocked by`).
-- The engine's **pipeline stage** lives in a `stage:*` **label** on the issue
-  (authoritative), mirrored to a coarse native status for the board. "Move the
-  card / issue to <state>" = set the matching `stage:` label (+ status). Full
-  label list + setup: `.autodev/ops/linear-setup.md`.
+- **Epic** (parallel lane) → Linear **Milestone**. **Story/task** → Linear
+  **Issue**. **Dependency** → Linear issue relation (`blocks`/`blocked by`).
+- **Pipeline stage = the issue's real STATUS** (a board column). Move it with the
+  helper: `node scripts/autodev/linear.mjs move <issue> <stage_key>`. Full column
+  set + setup: `.autodev/ops/linear-setup.md`.
+
+### Hierarchy mode — `tracker.hierarchy` (toggle, like braingrid)
+How a **feature** is represented. The default needs zero extra setup.
+- **`issue` (default):** the feature rides a **feature ISSUE** through the gate
+  columns (New Request → Clarifying (H) → PRD Review (H) → … → Done); a **Project
+  + Milestones** group its stories. No org-level changes; gates are issue-status moves.
+- **`project` (opt-in):** the feature **IS a Linear Project**, and its gates are
+  **org-level project statuses** (`tracker.project_statuses`), moved with
+  `linear.mjs set-project-status <projectId> <key>`. Cleaner Projects view, but the
+  custom statuses are workspace-wide — use only in a workspace dedicated to this.
+- **Tasks flow the issue board the same way in both modes.** The skills below are
+  written for `issue` mode; in `project` mode, read "move the feature to <gate>"
+  as a project-status move instead of an issue move.
 
 ## Non-negotiable principles (apply at every stage)
 

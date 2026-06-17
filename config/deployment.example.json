@@ -35,6 +35,17 @@
     },
     "state_model": "status",
     "_state_model_note": "STANDARD: every autoDev deployment uses the SAME canonical Linear status columns below — that's what makes the engine portable. Create them with ops/linear-setup.md and paste each column's UUID into 'id'. The engine moves an issue's STATUS at every step, so the board IS the live pipeline. (H) = a human gate/action. Names ending in (H) must keep the (H) — the engine reads it as 'human'.",
+    "hierarchy": "issue",
+    "_hierarchy_note": "TOGGLE (like braingrid — preferred-optional, degrades gracefully). 'issue' (DEFAULT, zero extra setup, no org-level changes): the feature rides a feature ISSUE through the gate columns below (New Request → … → Done); a Project + Milestones group the stories. 'project' (OPT-IN): the feature IS a Linear Project and its gates are ORG-LEVEL project statuses (see project_statuses) — cleaner Projects view, but the custom statuses appear workspace-wide, so only use it in a workspace dedicated to this. install.sh creates project_statuses only when hierarchy=='project'.",
+    "project_statuses": {
+      "_note": "ONLY used when hierarchy=='project'. Org-level Linear project statuses for the FEATURE lifecycle/gates. install.sh creates them (projectStatusCreate) and you paste the ids. The 'statuses' below then serve only the TASK pipeline.",
+      "new_request":  { "name": "New Request",     "id": "FILL_IF_PROJECT_MODE", "type": "backlog" },
+      "clarifying":   { "name": "Clarifying (H)",  "id": "FILL_IF_PROJECT_MODE", "type": "planned",   "human": true },
+      "prd_review":   { "name": "PRD Review (H)",   "id": "FILL_IF_PROJECT_MODE", "type": "planned",   "human": true },
+      "in_development":{ "name": "In Development",  "id": "FILL_IF_PROJECT_MODE", "type": "started" },
+      "acceptance":   { "name": "Acceptance (H)",  "id": "FILL_IF_PROJECT_MODE", "type": "started",   "human": true },
+      "done":         { "name": "Shipped",         "id": "FILL_IF_PROJECT_MODE", "type": "completed" }
+    },
     "statuses": {
       "new_request":               { "name": "New Request",      "id": "FILL_AT_SETUP", "_role": "drop zone / inbox (linear mode)" },
       "clarifying":                { "name": "Clarifying (H)",   "id": "FILL_AT_SETUP", "human": true, "_role": "engine asked a question; awaiting operator reply" },

@@ -130,6 +130,28 @@ if [[ -n "$LINEAR_TEAM_ID" && -f "$TOKEN_FILE" ]]; then
   mk "Blocked (H)"      started   "#eb5757" 160
   mk "Done"             completed "#0f7938" 170
   echo "  → paste each column's UUID into tracker.statuses[*].id (see linear-setup.md)"
+
+  # hierarchy: "project" mode only — create ORG-LEVEL feature project statuses
+  HIER=$(get '.tracker.hierarchy // "issue"')
+  if [[ "$HIER" == "project" ]]; then
+    echo "Hierarchy=project → creating ORG-LEVEL project statuses (workspace-wide)…"
+    PSEXIST=$(curl -s -X POST "$API" -H "Content-Type: application/json" -H "Authorization: $TOKEN" \
+      -d '{"query":"{organization{projectStatuses{name}}}"}' | jq -r '.data.organization.projectStatuses[].name')
+    mkps () {  # name type color
+      if grep -qxF "$1" <<<"$PSEXIST"; then echo "  • exists: $1"; return; fi
+      curl -s -X POST "$API" -H "Content-Type: application/json" -H "Authorization: $TOKEN" \
+        -d "$(jq -n --arg n "$1" --arg ty "$2" --arg c "$3" \
+          '{query:"mutation($i:ProjectStatusCreateInput!){projectStatusCreate(input:$i){success projectStatus{name}}}",variables:{i:{name:$n,type:$ty,color:$c}}}')" \
+        | jq -r '.data.projectStatusCreate.projectStatus.name as $n | if $n then "  ✓ created: "+$n else "  ✗ "+(.errors[0].message//"?") end'
+    }
+    mkps "New Request"    backlog   "#95a2b3"
+    mkps "Clarifying (H)" planned   "#f2994a"
+    mkps "PRD Review (H)" planned   "#5e6ad2"
+    mkps "In Development" started   "#0f7938"
+    mkps "Acceptance (H)" started   "#f2994a"
+    mkps "Shipped"        completed "#0f7938"
+    echo "  → paste each id into tracker.project_statuses[*].id (these are WORKSPACE-WIDE)"
+  fi
 else
   echo "ℹ︎ Skipped Linear board creation (need tracker.team_id in config + ~/.config/autodev/$CLIENT.linear.token)."
   echo "   Create the standard columns manually: .autodev/ops/linear-setup.md"

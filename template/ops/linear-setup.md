@@ -63,6 +63,28 @@ create "Done"             completed "#0f7938" 170
 Then paste each printed UUID into `tracker.statuses[*].id` in the deployment
 config (`state_model: "status"`).
 
+## Hierarchy mode — `tracker.hierarchy` (toggle)
+
+How a **feature** is represented. Default needs nothing beyond the columns above.
+
+- **`issue` (default):** the feature rides a **feature issue** through the gate
+  columns (New Request → … → Done); a Project + Milestones group its stories. No
+  org-level changes.
+- **`project` (opt-in):** the feature **is a Linear Project**, with **org-level
+  project statuses** for its gates. `install.sh` creates these automatically when
+  `hierarchy: "project"`; or create them manually:
+  ```bash
+  mkps () { curl -s -X POST "$API" -H "Content-Type: application/json" -H "Authorization: $TOKEN" \
+    -d "$(jq -n --arg n "$1" --arg ty "$2" --arg c "$3" '{query:"mutation($i:ProjectStatusCreateInput!){projectStatusCreate(input:$i){success projectStatus{id name}}}",variables:{i:{name:$n,type:$ty,color:$c}}}')" \
+    | jq -r '.data.projectStatusCreate.projectStatus | "\(.id)  \(.name)"'; }
+  mkps "New Request" backlog "#95a2b3"; mkps "Clarifying (H)" planned "#f2994a"
+  mkps "PRD Review (H)" planned "#5e6ad2"; mkps "In Development" started "#0f7938"
+  mkps "Acceptance (H)" started "#f2994a"; mkps "Shipped" completed "#0f7938"
+  ```
+  Paste the ids into `tracker.project_statuses[*].id`. **Note: project statuses are
+  organization-wide** — they appear across the whole workspace, so use `project`
+  mode only in a workspace dedicated to this.
+
 ## Labels to create (workspace/team)
 
 Control labels: `ai-eligible` (applied ONLY by `/breakdown`) · `route:feature` ·
