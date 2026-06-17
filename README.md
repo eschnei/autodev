@@ -5,10 +5,11 @@ ticketing board (Linear), driven by Claude Code — mimicking a PM → dev team,
 operable by non-technical people. It's **reusable**: it installs into *any* client
 repo from a single config file.
 
-> Design rationale + the first deployment's docs:
-> **https://autohaven-2cd4821c.vercel.app**. **Validated end-to-end** in a sandbox:
-> a 15-story / 5-epic landing page built autonomously (144 unit + 24 e2e green),
-> plus a proven dev↔QA bounce-back loop.
+> **Validated end-to-end** in a sandbox: a 15-story / 5-epic landing page built
+> autonomously (144 unit + 24 e2e green), plus a proven dev↔QA bounce-back loop.
+>
+> **Open source (Apache-2.0).** Free to self-host. **Managed hosting + onboarding
+> available** — see [Managed service](#managed-service).
 
 ## What you get
 
@@ -91,3 +92,14 @@ Specialist personas in `~/.claude/agents/`; routing in `config/*.json` (`persona
 **v1 — complete, hardened, validated.** Engine, installer, helper, doctor, and all
 skills in place; proven end-to-end in a sandbox (full feature build + dev↔QA loop).
 Next: deploy onto a dedicated always-on machine and enable the 24/7 timer.
+
+## Managed service
+
+autoDev is **free to self-host** under Apache-2.0. If you'd rather not run it
+yourself, **managed hosting + onboarding** (we install it into your repo, wire up
+Linear + GitHub + CI, and operate the engine for you) is available as a paid
+service — reach out to the maintainer.
+
+## License
+
+[Apache-2.0](./LICENSE). Free to use, modify, and self-host.
