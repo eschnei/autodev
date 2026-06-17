@@ -140,18 +140,28 @@ Read `review.granularity`:
   gate moves to feature acceptance (§8). Requires
   `review.auto_merge_to_feature_branch: true`.
 
+**After ANY squash-merge into the feature branch (either mode), run `/merge-verify`
+§1** — the clean-room integration check (fresh checkout + clean install + full
+gates + live smoke). If it fails, it auto-reverts the merge and reopens the story.
+A green story branch is not proof the *integrated* branch works.
+
 In **both** modes nothing reaches `{{DEFAULT_BRANCH}}` without a human — branch
 protection still enforces that.
 
 ## 8 · Feature close-out
 When all of the epic's stories are merged into the feature branch and it's green:
+- **Run `/merge-verify` §2** — clean-room check on the assembled feature, then
+  generate the **acceptance report** and move to the acceptance gate.
 - **`per_story`:** stories are already individually approved → open the feature
   PR → `{{DEFAULT_BRANCH}}` for the human to merge.
-- **`per_feature`:** move the epic to `Ready for Human Acceptance`. The human
-  **acceptance-tests the whole assembled feature** (running app / preview, via
-  the manual scripts) and signs off → the engine opens/merges the feature PR to
-  `{{DEFAULT_BRANCH}}` (human-merged). A feature-level failure is reported back,
-  localized to a story (commit `[sc-<id>]` trails), fixed, re-QA'd.
+- **`per_feature`:** move to the acceptance gate (issue mode:
+  `ready_for_human_acceptance`; project mode: `acceptance` project-status). The
+  human acceptance-tests the assembled feature via the report + manual scripts and
+  signs off → opens the feature PR → `{{DEFAULT_BRANCH}}`. A feature-level failure
+  is localized to a story (`[sc-<id>]` trail), fixed, re-QA'd.
+- **After the human merges to `{{DEFAULT_BRANCH}}`:** run `/merge-verify` §3 —
+  post-deploy smoke against the real environment → report → **human final prod
+  sign-off**.
 - Merge style: story→feature = `{{MERGE_S2F}}`; feature→main = `{{MERGE_F2M}}`.
 - Release the one-feature lock → next queued epic.
 
