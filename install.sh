@@ -35,6 +35,7 @@ BOT_EMAIL=$(get '.bot_identity.email')
 BG_PROJECT=$(get '.braingrid.project_short_id')
 LINEAR_TEAM=$(get '.tracker.team')
 LINEAR_TEAM_KEY=$(get '.tracker.team_key')
+LINEAR_TEAM_ID=$(get '.tracker.team_id // empty')
 MAX_LANES=$(get '.execution.max_lanes')
 TICK_MIN=$(get '.execution.tick_interval_minutes')
 TICK_SECONDS=$(( TICK_MIN * 60 ))
@@ -103,6 +104,37 @@ cp -R "$TMP/ops/." "$REPO/.autodev/ops/"
 cp "$CONFIG" "$REPO/.autodev/deployment.json"
 rm -rf "$TMP"
 
+# ---- create the standard Linear board (canonical columns; idempotent) -------
+TOKEN_FILE="$HOME/.config/autodev/$CLIENT.linear.token"
+if [[ -n "$LINEAR_TEAM_ID" && -f "$TOKEN_FILE" ]]; then
+  echo "Creating the standard Linear board columns in team '$LINEAR_TEAM'…"
+  TOKEN="$(cat "$TOKEN_FILE")"; API="https://api.linear.app/graphql"
+  EXISTING=$(curl -s -X POST "$API" -H "Content-Type: application/json" -H "Authorization: $TOKEN" \
+    -d "$(jq -n --arg t "$LINEAR_TEAM_ID" '{query:"query($t:String!){team(id:$t){states(first:50){nodes{name}}}}",variables:{t:$t}}')" \
+    | jq -r '.data.team.states.nodes[].name')
+  mk () {  # name type color position — skips if a column with that name already exists
+    if grep -qxF "$1" <<<"$EXISTING"; then echo "  • exists: $1"; return; fi
+    curl -s -X POST "$API" -H "Content-Type: application/json" -H "Authorization: $TOKEN" \
+      -d "$(jq -n --arg t "$LINEAR_TEAM_ID" --arg n "$1" --arg ty "$2" --arg c "$3" --argjson p "$4" \
+        '{query:"mutation($i:WorkflowStateCreateInput!){workflowStateCreate(input:$i){success workflowState{name}}}",variables:{i:{teamId:$t,name:$n,type:$ty,color:$c,position:$p}}}')" \
+      | jq -r '.data.workflowStateCreate.workflowState.name as $n | if $n then "  ✓ created: "+$n else "  ✗ "+(.errors[0].message//"?") end'
+  }
+  mk "New Request"      started   "#95a2b3"  90
+  mk "Clarifying (H)"   started   "#f2994a"  95
+  mk "PRD Review (H)"   started   "#5e6ad2" 100
+  mk "Breakdown"        started   "#5e6ad2" 110
+  mk "Ready for AI Dev" started   "#0f7938" 120
+  mk "AI Development"    started   "#0f7938" 130
+  mk "AI QA"            started   "#f2c94c" 140
+  mk "Human Review (H)" started   "#f2994a" 150
+  mk "Blocked (H)"      started   "#eb5757" 160
+  mk "Done"             completed "#0f7938" 170
+  echo "  → paste each column's UUID into tracker.statuses[*].id (see linear-setup.md)"
+else
+  echo "ℹ︎ Skipped Linear board creation (need tracker.team_id in config + ~/.config/autodev/$CLIENT.linear.token)."
+  echo "   Create the standard columns manually: .autodev/ops/linear-setup.md"
+fi
+
 # ---- report -----------------------------------------------------------------
 cat <<EOF
 
@@ -121,8 +153,9 @@ Now the auth-bound manual steps (these can't be automated for you):
        - export LINEAR_API_TOKEN=\$(cat ~/.config/autodev/$CLIENT.linear.token)
        - (interactive) connect a Linear MCP for their workspace if desired
 
-  3. Create the Linear labels (+ optional custom statuses):
-       see .autodev/ops/linear-setup.md
+  3. Linear board: the standard status columns were auto-created above (if a
+       token was present) — paste their UUIDs into tracker.statuses[*].id.
+       Create the control LABELS (ai-eligible, route:*, risk:*): .autodev/ops/linear-setup.md
 
   4. Bot git identity + branch protection (needs repo admin):
        protect '$DEFAULT_BRANCH' so ONLY humans merge; the bot ($BOT_NAME)

@@ -4,7 +4,7 @@ description: >
   The front door for new work on {{CLIENT_NAME}}. Use whenever the operator wants
   to add a feature, fix, or idea to the roadmap — e.g. "we need to add X", "new
   idea for the roadmap", "here's a brief for Y". Routes the request, interviews
-  for anything missing, and creates the Linear epic. This is the ONLY way work
+  for anything missing, and creates the Linear feature-request issue. The ONLY way work
   enters the engine.
 ---
 
@@ -86,9 +86,11 @@ The steps below are identical in both modes — only the *medium* differs
 3. **Write the brief** to `specs/<feature-slug>/brief.md` in the repo and commit
    it (on a working branch, not `{{DEFAULT_BRANCH}}`).
 
-4. **Create the Linear epic** in the `Draft` state (workspace
+4. **Create the Linear feature-request issue** in `New Request` (workspace
    `{{LINEAR_TEAM}}`), titled from the feature, linked to the brief. Apply the
-   `route:feature` label.
+   `route:feature` label. This single issue carries the feature through the front
+   half (New Request → Clarifying (H) → PRD Review (H)); at `/breakdown` it's
+   promoted into a Project (feature) with Milestones (epics) + child story Issues.
 
 5. **Hand off.** Tell the operator the brief is captured and offer to draft the
    PRD next (the `/prd` skill turns this into a BrainGrid Requirement for their
@@ -98,8 +100,8 @@ The steps below are identical in both modes — only the *medium* differs
 
 - Stay conversational — this is a human-in-the-loop stage; never expect command
   names from the operator.
-- Do not create stories, branches, or BrainGrid tasks here — intake only
-  produces the brief + the Draft epic. Stories come at `/breakdown`, after the
-  PRD is approved at Gate 1.
+- Do not create stories, branches, projects, milestones, or BrainGrid tasks here
+  — intake only produces the brief + the feature-request issue. The full
+  hierarchy comes at `/breakdown`, after the PRD is approved at Gate 1.
 - Confidentiality: keep this client's context separate; never reference other
   clients' work.

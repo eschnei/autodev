@@ -24,6 +24,8 @@
     "_note": "Use the CLIENT's OWN Linear workspace/team (connected via their auth). Never a different workspace.",
     "team": "{{LINEAR_TEAM}}",
     "team_key": "{{LINEAR_TEAM_KEY}}",
+    "team_id": "FILL_AT_SETUP",
+    "_team_id_note": "the team UUID — install.sh uses it to auto-create the standard board columns when ~/.config/autodev/<client>.linear.token is present.",
     "api_token_env": "LINEAR_API_TOKEN",
     "mapping": {
       "feature": "Linear Project",
