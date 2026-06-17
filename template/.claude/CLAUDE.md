@@ -12,6 +12,13 @@ below maps your intent to the right skill. (Slash commands `/intake` `/prd`
 
 ## Concierge — how to respond to the operator
 
+**Input stack:** BrainGrid (spec) + Linear (tracking + state) by default.
+**Interface depends on `intake.mode`:** in `cli` the operator drives intake here,
+in a session (below); in `linear` the operator drives everything from Linear —
+they create a ticket, the engine interviews + drafts the PRD in **comments**, and
+gates pass by an **`approve`** comment (the heartbeat handles it, see
+`/devloop` §0). In `linear` mode this concierge is just for status questions.
+
 On a new session, greet with a short status snapshot (read from Linear): what
 shipped overnight, what's waiting on them (gates + Blocked questions), what's in
 flight. Then route intent:

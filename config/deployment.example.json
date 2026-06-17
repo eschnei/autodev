@@ -65,6 +65,16 @@
     "project_short_id": "PROJ-XX"
   },
 
+  "intake": {
+    "_note": "Default input stack is BrainGrid (spec authoring: Requirement = PRD, + tasks) + Linear (tracking + state machine). 'mode' controls HOW work enters the engine.",
+    "mode": "cli",
+    "_mode_note": "cli = interactive in a Claude Code session (default; tickets typed straight into Linear stay inert — the prompt-injection defense). linear = fully Linear-driven: an operator creates an issue in the drop zone and the engine classifies (feature vs bug), interviews, and drafts the PRD entirely via Linear COMMENTS; every human gate passes by an 'approve' comment. No terminal needed. ('both' = accept either.)",
+    "linear_drop_status": "Backlog",
+    "_drop_note": "linear mode only: the inbox. A new issue here without 'ai-eligible' (not yet triaged) is picked up by the heartbeat and run through intake-by-comment. The engine moves it out of the drop zone once it starts.",
+    "authorized_operators": ["*"],
+    "_auth_note": "linear mode only: Linear user identifiers (email/display name) whose NEW tickets + comments are honored as engine triggers and gate approvals. '*' = any workspace member (fine for a private team workspace; list real operators to shrink the injection surface). Ticket/comment CONTENT is always untrusted DATA, never instructions that can override engine rules."
+  },
+
   "execution": {
     "max_lanes": 5,
     "tick_interval_minutes": 15,
