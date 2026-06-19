@@ -64,17 +64,38 @@ How a **feature** is represented. The default needs zero extra setup.
   written for `issue` mode; in `project` mode, read "move the feature to <gate>"
   as a project-status move instead of an issue move.
 
+### Delivery mode — `review.delivery` (toggle) — HOW work reaches a human
+Governs whether the engine touches GitHub. **This is authoritative; every "push" /
+"PR" step in the skills means the delivery-mode action below.**
+- **`local_diff` (LOCAL-ONLY):** NO `git push`, NO `gh`/PRs — ever. All branches,
+  commits, and merges stay **local**. Wherever a skill says "open/update a draft PR"
+  or "push the branch," instead **keep the branch local and present a LOCAL DIFF**:
+  put `git diff <base>...<branch>` (and `git log --stat`) on the Linear issue as the
+  review artifact, with the branch name + the exact local command to view it. Gate 2
+  = a human reviews that local diff and replies `approve`. "Merge to
+  `{{DEFAULT_BRANCH}}`" becomes "present the assembled **local** feature branch diff;
+  a human merges locally if they choose." CI parity is replaced by the **local**
+  gates (tests/lint/build) since there's no remote CI. Enforced hard by
+  `.git/hooks/pre-push` — a push attempt is a bug, not a step.
+- **`draft_pr` (REMOTE, default):** the bot pushes `{{FEATURE_PREFIX}}*` /
+  `{{STORY_PREFIX}}/*` and opens GitHub **draft PRs**; Gate 2 reviews the PR; humans
+  merge to `{{DEFAULT_BRANCH}}` via GitHub (branch protection enforces it). Requires
+  bot git identity + branch protection.
+
 ## Non-negotiable principles (apply at every stage)
 
-1. **Linear is the only state machine.** Every transition is a Linear issue
-   stage change (the `stage:` label). BrainGrid holds *spec content* (Requirement
-   = PRD, + tasks), never workflow state — its task status is at most a one-way
-   mirror of Linear.
+1. **Linear is the only state machine.** Every transition is a Linear **status**
+   move. BrainGrid holds *spec content* (Requirement = PRD + tasks) — and at
+   `/breakdown` that content is **copied in full into the Linear issue** so each
+   issue is **self-contained** (the dev agent never reads BrainGrid). BrainGrid is
+   never read downstream; its status is at most a one-way mirror of Linear.
 2. **Two human gates.** Gate 1 = PRD approval. Gate 2 = story review/merge. A
    gate passes only by a human decision.
-3. **Only humans merge to `{{DEFAULT_BRANCH}}`.** The bot pushes
-   `{{FEATURE_PREFIX}}*` and `{{STORY_PREFIX}}/*` branches only. Branch
-   protection enforces Gate 2 even if an agent misbehaves.
+3. **Only humans merge to `{{DEFAULT_BRANCH}}`** (and per the **Delivery mode**
+   above, in `local_diff` the engine never touches GitHub at all — local branches +
+   local diffs only). In `draft_pr` the bot pushes `{{FEATURE_PREFIX}}*` and
+   `{{STORY_PREFIX}}/*` branches only and branch protection enforces Gate 2 even if
+   an agent misbehaves.
 4. **Ask, don't invent — at any stage.** If info is missing, ambiguous, or
    contradictory, ask rather than guess. Front half (intake → PRD → breakdown):
    ask the human **live, in-session**. Back half (dev / self-review / QA): move
@@ -96,7 +117,8 @@ How a **feature** is represented. The default needs zero extra setup.
 - Acceptance criteria met (the contract).
 - Diff includes tests covering those criteria; the suite passes.
 - Diff is small and single-purpose where practical.
-- CI green on the story's draft PR.
+- Gates green per **Delivery mode**: `draft_pr` → CI green on the draft PR;
+  `local_diff` → the local gates (tests · lint · build) green (no remote CI).
 - Dev agent self-reviewed the diff against the criteria (×{{SELF_REVIEW}}).
 - A `risk:` class is set; AI QA steps + manual test steps are on the story.
 
@@ -106,7 +128,8 @@ How a **feature** is represented. The default needs zero extra setup.
 - Build: `{{CMD_BUILD}}`  ·  Run the app (for live QA): `{{CMD_APP_RUN}}` → `{{APP_URL}}`
 - E2E / browser tests live in: `{{E2E_DIR}}/`
 - Branches: feature `{{FEATURE_PREFIX}}<feature-slug>`; story
-  `{{STORY_PREFIX}}/sc-<story-id>/<slug>` → draft PR into the feature branch.
+  `{{STORY_PREFIX}}/sc-<story-id>/<slug>`. Delivery to the feature branch follows
+  **Delivery mode**: `draft_pr` → draft PR; `local_diff` → local diff, local merge.
 - Merge: story → feature = **{{MERGE_S2F}}**; feature → `{{DEFAULT_BRANCH}}` =
   **{{MERGE_F2M}}** (human-merged).
 - BrainGrid project: **{{BG_PROJECT}}**. Linear workspace: **{{LINEAR_TEAM}}**.

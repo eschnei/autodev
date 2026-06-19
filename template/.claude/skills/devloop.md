@@ -11,7 +11,7 @@ description: >
 # devloop — one heartbeat pass
 
 Read `.autodev/deployment.json` for: tracker states/labels, `execution.*`
-(max_lanes, max_dev_qa_loops, self_review_rounds), `review.granularity` +
+(max_lanes, max_dev_qa_loops, self_review_rounds, logging), `review.granularity` +
 `review.auto_merge_to_feature_branch`, `personas.*` (dev_routing, qa_angles),
 `commands.*`, `qa.*`, branch names.
 
@@ -28,6 +28,15 @@ Read `.autodev/deployment.json` for: tracker states/labels, `execution.*`
 > match its real position (dev finished but card still in `ai_development` → `ai_qa`;
 > a story already merged but still "in flight" → `done`). Idempotent — a dropped
 > move self-heals on the next tick.
+>
+> **Progress logging — `execution.logging` (quiet | normal | verbose; default
+> normal).** Status = WHERE a story is; **comments = WHAT happened** — together the
+> board is a glass box for non-technical operators. At `normal`, post a tight,
+> emoji-tagged **checkpoint** comment via `linear.mjs comment <issue> "…"` at: dev
+> **start** + **done**, each QA angle's **verdict** + overall, each **dev↔QA loop
+> round**, and every gate / Blocked. A few lines each — a *summary*, never keystrokes.
+> `quiet` = status moves only (no progress comments). `verbose` = also attach diffs /
+> sub-steps for debugging. (If `logging: quiet`, skip the "🗒️ log" steps below.)
 
 ## 0 · Front half — Linear-driven intake (only if `intake.mode` is `linear`/`both`)
 Skip this whole section when `intake.mode` is `cli`. When active, each tick also
@@ -69,6 +78,7 @@ None eligible anywhere → exit (Blocked stories are visible on Linear).
 
 ## 3 · Develop (per selected story)
 - **Move the story → `ai_development`** (helper) before work starts.
+- 🗒️ **log:** `▶️ Dev started · persona <agent> · branch <name>`.
 - Spawn the story's **`agent:` persona** (from breakdown / `dev_routing`) as the
   dev subagent, in its **own git worktree** on a story branch
   `{{STORY_PREFIX}}/sc-<id>/<slug>` cut from feature-branch HEAD. Fresh context;
@@ -87,10 +97,24 @@ criterion and fixes gaps. **If it surfaces a requirements gap** (story ambiguous
 `{{CMD_TEST}}` pass · tests-for-criteria present · `{{CMD_LINT}}` clean.
 - Missing human-only setup (env var, key, shared-DB migration) → `Blocked` with
   the exact ask.
-Then commit to the story branch (`[sc-<id>]` in the message) and open/update a
-**draft PR → feature branch**. **Move the story → `ai_qa`** (helper).
+Then commit to the story branch (`[sc-<id>]` in the message) and **deliver to the
+feature branch per the Delivery mode** (CLAUDE.md): `draft_pr` → open/update a draft
+PR; `local_diff` → keep the branch local, no push/PR. **Move the story → `ai_qa`** (helper).
+- 🗒️ **log:** `✅ Dev done` — 1–2 lines on what was built · files touched · tests
+  added · gate results (`{{CMD_TEST}}` ✓ · lint ✓ · build ✓).
 
 ## 6 · AI QA — three angles (all always run), live is advisory
+**Executable-env prep (do once per session, before any test layer):** bring up the
+data services with `qa.docker_up`, then **seed the test DB with `qa.seed_test`** if
+not already seeded this session (skip on later ticks — re-seeding can violate unique
+constraints). Run each layer via `qa.test_layers.*` exactly as configured — those
+strings already encode the required exclusions/concurrency (e.g. `--exclude=buggy
+--max-cases`); do **not** substitute a bare `mix test`, or known-baseline/contention
+failures will produce false reds. A layer with a documented `qa._known_baseline`
+issue (e.g. pre-existing broken suites) is judged against that baseline, not zero.
+
+🗒️ **log:** `▶️ AI QA started · 3 angles` (on a retry, `🔁 QA round <n>`).
+
 Spawn **fresh, independent** reviewer contexts from `personas.qa_angles` — never
 the dev agent. Each run re-derives its verdict from artifacts and is asked "did
 we hallucinate this?":
@@ -103,6 +127,8 @@ we hallucinate this?":
 - **Regression** (`test-results-analyzer`, `reality-checker`): full suite +
   adjacent flows + end-to-end; unintended drift elsewhere.
 - **Verdict** (`reality-checker`) combines them.
+- 🗒️ **log the verdict:** `conformance ✓ · adversarial ✓ (N edge cases) · regression ✓
+  → PASS` (on fail, the specific defects — see Outcomes below).
 
 **Gating vs advisory:**
 - **Auto-blocking gates are code-level:** tests pass · tests-for-criteria · the
@@ -131,8 +157,10 @@ Read `review.granularity`:
 
 - **`per_story`** (calibration): **move the story → `ready_for_human_review`**
   (helper) with the 3 QA reports, live screenshots/flags, and the manual test
-  script. 🚦 **Gate 2 per story** — a human reviews this story's draft PR. On
-  approval the engine squash-merges it into the feature branch and moves it → `done`.
+  script. 🚦 **Gate 2 per story** — a human reviews this story per the **Delivery
+  mode** (`draft_pr` → the draft PR; `local_diff` → the local diff posted on the
+  issue + the command to view it). On approval the engine **squash-merges it into
+  the (local) feature branch** and moves it → `done`.
 
 - **`per_feature`** (the PM/dev-team model): the engine **squash-merges the story
   into the feature branch automatically** (no per-story human review — still
@@ -152,12 +180,16 @@ protection still enforces that.
 When all of the epic's stories are merged into the feature branch and it's green:
 - **Run `/merge-verify` §2** — clean-room check on the assembled feature, then
   generate the **acceptance report** and move to the acceptance gate.
-- **`per_story`:** stories are already individually approved → open the feature
-  PR → `{{DEFAULT_BRANCH}}` for the human to merge.
+- **`per_story`:** stories are already individually approved → deliver the assembled
+  feature per **Delivery mode**: `draft_pr` → open the feature PR → `{{DEFAULT_BRANCH}}`
+  for the human to merge; `local_diff` → present the local feature-branch diff
+  (`git diff {{DEFAULT_BRANCH}}...{{FEATURE_PREFIX}}<slug>`) for the human to review
+  and merge locally. **Never push.**
 - **`per_feature`:** move to the acceptance gate (issue mode:
   `ready_for_human_acceptance`; project mode: `acceptance` project-status). The
   human acceptance-tests the assembled feature via the report + manual scripts and
-  signs off → opens the feature PR → `{{DEFAULT_BRANCH}}`. A feature-level failure
+  signs off → delivers per **Delivery mode** (`draft_pr` → feature PR →
+  `{{DEFAULT_BRANCH}}`; `local_diff` → local feature-branch diff, merged locally). A feature-level failure
   is localized to a story (`[sc-<id>]` trail), fixed, re-QA'd.
 - **After the human merges to `{{DEFAULT_BRANCH}}`:** run `/merge-verify` §3 —
   post-deploy smoke against the real environment → report → **human final prod

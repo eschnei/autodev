@@ -52,6 +52,15 @@ RUN_HOME=$(get '.runner.home_dir')
 MERGE_S2F=$(get '.merge_policy.story_to_feature')
 MERGE_F2M=$(get '.merge_policy.feature_to_main')
 
+# These values are interpolated into sed replacements; '&', '\' and the '|'
+# delimiter are special there. Escape them so e.g. "a && b" stays literal
+# (unescaped '&' was rendering as the matched pattern -> "{{CMD}}{{CMD}}").
+# Only vars used EXCLUSIVELY in substitution are escaped (REPO/CLIENT/etc. are
+# also used for filesystem ops and must stay raw).
+for v in CMD_INSTALL CMD_TEST CMD_LINT CMD_BUILD CMD_APP_RUN APP_URL MERGE_S2F MERGE_F2M; do
+  printf -v "$v" '%s' "$(printf '%s' "${!v}" | sed -e 's/[\\&|]/\\&/g')"
+done
+
 [[ -d "$REPO" ]] || { echo "error: repo.local_path '$REPO' not found" >&2; exit 1; }
 
 # ---- render: copy template, substitute placeholders -------------------------

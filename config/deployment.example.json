@@ -90,7 +90,9 @@
     "max_lanes": 5,
     "tick_interval_minutes": 15,
     "max_dev_qa_loops": 3,
-    "self_review_rounds": 1
+    "self_review_rounds": 1,
+    "logging": "normal",
+    "_logging_note": "How much the dev/QA steps narrate into Linear COMMENTS (status = where; comments = what). normal (default) = emoji checkpoint comments at dev start/done, each QA verdict, each dev↔QA round, gates/Blocked. quiet = status moves only. verbose = also attach diffs/sub-steps for debugging."
   },
 
   "commands": {
