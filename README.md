@@ -44,7 +44,7 @@ autoDev/
 cp config/deployment.example.json config/<client>.json   # fill: repo, branch, Linear, commands…
 ./install.sh config/<client>.json                        # renders the engine + auto-creates the board
 scripts/autodev/doctor.sh                                 # preflight — fix any ✗ before running
-# then: braingrid init (optional) · connect Linear MCP · bot identity + branch protection
+# then: wire BrainGrid (optional — see below) · connect Linear MCP · bot identity + branch protection
 ```
 
 The engine is **client-agnostic**; everything per-client lives in the one config.
@@ -76,6 +76,36 @@ The engine is **client-agnostic**; everything per-client lives in the one config
 | `intake.mode` | `cli` (in-session) **or** `linear` (ticket + comments, no terminal) | `cli` |
 | `tracker.hierarchy` | `issue` (feature on the board) **or** `project` (feature-as-Project, org-wide statuses) | `issue` |
 | `review.granularity` | `per_story` (review each) **or** `per_feature` (auto-merge to feature branch; review the whole) | `per_story` |
+
+## BrainGrid CLI + Claude Code (optional spec tool)
+
+BrainGrid is the **preferred** spec tool (`braingrid.enabled: true`) — it authors the
+PRD (`/specify`) and breakdown directly inside Claude Code. It's **optional**: with
+no BrainGrid, the engine falls back to the product-manager + project-manager-senior
+personas. To wire it up (needs Node 18+):
+
+```bash
+# 1. Install the CLI
+npm install -g @braingrid/cli
+
+# 2. Authenticate (opens a browser)
+braingrid login
+
+# 3. Install the Claude Code integration — adds the /specify, /breakdown, /build
+#    slash commands to Claude Code (run --force to overwrite existing files)
+braingrid setup claude-code
+
+# 4. In the TARGET repo: create/link a BrainGrid project
+cd /path/to/target-repo && braingrid init
+#    (non-interactive: braingrid project create --name "<Name>" --repository owner/repo,
+#     then braingrid init --project <id>)
+
+# 5. Verify
+braingrid status        # shows auth + the linked project
+```
+
+Then set `braingrid.enabled: true` and `braingrid.project_short_id` in the deployment
+config. (`braingrid setup cursor` / `openclaw` exist too, but autoDev uses Claude Code.)
 
 ## Agent roster (agency-agents)
 
