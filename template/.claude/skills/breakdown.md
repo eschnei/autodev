@@ -3,8 +3,9 @@ name: breakdown
 description: >
   Break an approved PRD into Linear stories for {{CLIENT_NAME}}. Use after
   Gate 1 — when the operator approves the PRD / moves the epic out of PRD Review.
-  Runs BrainGrid /breakdown, then maps tasks to stories with persona routing,
-  risk class, AI-QA steps, and manual test steps.
+  Runs BrainGrid /breakdown, then copies each task's FULL spec into a
+  self-contained Linear issue (so the dev agent never reads BrainGrid), adding
+  persona routing, risk class, AI-QA steps, and manual test steps.
 ---
 
 # Breakdown — Requirement → Linear stories
@@ -32,24 +33,31 @@ Read `.autodev/deployment.json` for: tracker states/labels, BrainGrid project,
      number of coherent epics; one Milestone each (the parallel lanes the devloop runs).
    - **Story/task → an Issue** in the Project, assigned to its Milestone (next step).
 
-3. **Map each BrainGrid task → one Linear story (Issue)** using the story template
-   (`.claude/skills/_story-template.md` / the format in CLAUDE.md), assigned to its
-   epic's Milestone. Per story set:
-   - **Acceptance criteria** (objective, testable — the contract).
-   - **AI QA steps** + **manual test steps** (the latter is the human's script
-     at acceptance).
-   - **Tests required** note — the diff must include tests for the criteria.
-   - **`blocked by` links** for dependencies (Linear story links).
-   - **Touched files** — record what the task touches (feeds the lane
-     file-overlap guard and the persona routing).
-   - **`risk:` class** — `trivial` / `standard` / `sensitive`. Be deliberate:
-     trivial = isolated, well-tested, low blast radius; sensitive = auth, data,
-     money, migrations, security surface. This drives review depth now and
-     auto-merge graduation later.
-   - **`agent:` persona** — route from `personas.dev_routing` by the touched
-     files (e.g. `server/` → backend-architect, `ui/` → frontend-developer,
-     schema/migration → database-optimizer; else the `default`). This is the
-     "best agent for the job" tag the devloop dispatches.
+3. **Transfer each task → a SELF-CONTAINED Linear Issue.** Copy the task's **full
+   spec into the Linear issue body** so Linear is the single source of truth the dev
+   agent works from — it must NEVER need to open BrainGrid to build the story.
+   - **(BrainGrid)** Pull the complete content per task:
+     `braingrid task list -r <REQ> --format json` (get the task ids), then
+     `braingrid task show <id> --format markdown` → the full task spec (description,
+     acceptance criteria, implementation/build plan, test plan, edge cases).
+     **Write that entire markdown into the issue body**, e.g.
+     `node scripts/autodev/linear.mjs create-issue --title "<task>"
+     --desc "<full task markdown>" --stage ready_for_ai_dev --labels "ai-eligible,…"`,
+     assigned to its epic's Milestone. Don't summarize or link-only — copy the data in.
+   - **(Fallback)** project-manager-senior writes the same complete spec (criteria,
+     plan, tests, edge cases) directly into the issue body.
+   - Then ensure these engine fields are present on the issue (add any the BrainGrid
+     content didn't already cover):
+     - **Acceptance criteria** (objective, testable — the contract) · **AI QA steps**
+       + **manual test steps** · **Tests required** note.
+     - **`blocked by` links** for dependencies (Linear issue relations).
+     - **Touched files** — feeds the lane file-overlap guard + persona routing.
+     - **`risk:` class** — `trivial` / `standard` / `sensitive` (isolated+well-tested
+       → trivial; auth/data/money/migrations/security → sensitive). Drives review depth.
+     - **`agent:` persona** — routed from `personas.dev_routing` by touched files.
+   - **Traceability (one-way mirror):** footer the issue with the source
+     `BrainGrid <REQ> / <task-id>`. Linear stays authoritative; BrainGrid is never
+     read again downstream.
 
 4. **Ask, don't invent.** If the PRD is too thin to write *testable* criteria or
    QA steps for a task, **stop and ask the operator live** rather than emitting a
