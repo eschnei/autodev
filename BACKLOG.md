@@ -23,7 +23,7 @@ Fixes hit + folded in during the run; they benefit every client.
 
 ## Part B — Planned (ranked)
 
-### B1 · Feature-level acceptance QA stage — **HIGH**
+### B1 · Feature-level acceptance QA stage — **HIGH** — ✅ SHIPPED
 Per-story 3-angle QA + per-merge clean-room verify exist, but there's no final
 **integrated, whole-branch** pass. In the run this caught cross-suite flakiness and
 let the operator verify the system live "as a whole."
@@ -31,7 +31,7 @@ let the operator verify the system live "as a whole."
 suites** across the assembled branch + a **live system smoke**, gated behind
 `qa.acceptance.{integrated_suites, live_system}`.
 
-### B2 · Code-quality / leanness review stage — **HIGH**
+### B2 · Code-quality / leanness review stage — **HIGH** — ✅ SHIPPED
 The engine QAs for correctness, not bloat. A dedicated pass found a duplicated
 security predicate, copy-paste components, stale comments (−98 lines, no behavior
 change). → Optional **`quality_review`** stage at feature close-out (a
@@ -92,4 +92,4 @@ hours — sales-ready numbers). Config: `reporting.feature_stats` (on/off + dest
 ---
 
 ## Suggested order
-B3 ✅ → B5 ✅ → B4 ✅ → B8 ✅ → B1 (acceptance QA) → B2 (leanness) → B6 → C1/C2 → B7.
+B3 ✅ → B5 ✅ → B4 ✅ → B8 ✅ → B1 ✅ → B2 ✅ → **remaining: B6 → C1/C2/C3 → B7**.
