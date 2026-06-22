@@ -111,6 +111,10 @@ Governs whether the engine touches GitHub. **This is authoritative; every "push"
    tests-for-criteria present, the adversarial/regression review, and CI green.
 7. **Builder ≠ reviewer; QA = three angles** (conformance · adversarial ·
    regression), all always run.
+8. **Hermetic always (SAFETY).** Every test/build/app/live run applies
+   `qa.hermetic.env` so external calls hit local/sandbox or are blanked. The engine
+   **never** drives tests or the live app against PRODUCTION services/creds. If prod
+   endpoints are present and `qa.hermetic` is off, **stop** (`blocked`) — never run.
 
 ## Definition of done (per story)
 

@@ -104,6 +104,12 @@ PR; `local_diff` → keep the branch local, no push/PR. **Move the story → `ai
   added · gate results (`{{CMD_TEST}}` ✓ · lint ✓ · build ✓).
 
 ## 6 · AI QA — three angles (all always run), live is advisory
+**Hermetic FIRST (B3 · SAFETY):** before ANY test/build/app/live run, export the
+`qa.hermetic.env` overrides so external calls hit local/sandbox or are blanked — the
+engine must **never** drive tests or the live app against PRODUCTION services. If
+`doctor` flagged prod endpoints and `qa.hermetic.enabled` is false, **do not run** —
+move the story to `blocked` with that exact warning.
+
 **Executable-env prep (before any test layer):** bring up the data services with
 `qa.docker_up` (idempotent). Then **seed the test DB with `qa.seed_test` ONLY if the
 persistent marker `.autodev/.test_db_seeded` is absent**; on a successful seed,

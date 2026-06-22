@@ -52,5 +52,27 @@ else
   ok "braingrid disabled — agent fallback in use"
 fi
 
+echo "hermetic safety (B3):"
+HERM=$(jq -r '.qa.hermetic.enabled // false' "$CONFIG")
+# scan local env files for prod-looking external endpoints
+ENVHITS=""
+for ef in "$REPO/.env" "$REPO/.env.test" "$REPO/.env.local" "$REPO/config/.env"; do
+  [[ -f "$ef" ]] || continue
+  while IFS= read -r pat; do
+    [[ -z "$pat" ]] && continue
+    grep -qiE "${pat//\*/[^[:space:]\"']*}" "$ef" 2>/dev/null && ENVHITS+="$pat($(basename "$ef")) "
+  done < <(jq -r '.qa.hermetic.forbid_endpoints[]?' "$CONFIG")
+done
+if [[ -n "$ENVHITS" ]]; then
+  if [[ "$HERM" == "true" ]]; then
+    warn "prod-looking endpoints in env: $ENVHITS — OK only because qa.hermetic overrides them at run time"
+    [[ "$(jq -r '.qa.hermetic.env | length' "$CONFIG")" -gt 0 ]] && ok "qa.hermetic.env overrides set" || bad "qa.hermetic.enabled but no qa.hermetic.env overrides defined"
+  else
+    bad "PROD endpoints in env ($ENVHITS) and qa.hermetic.enabled=false — the engine could drive tests/live against PRODUCTION. Enable qa.hermetic."
+  fi
+else
+  [[ "$HERM" == "true" ]] && ok "hermetic on; no prod endpoints detected in env" || warn "qa.hermetic disabled (fine if there are no external prod services)"
+fi
+
 echo
 [[ $fail -eq 0 ]] && { echo "doctor: PASS"; exit 0; } || { echo "doctor: FAIL — fix the ✗ items above"; exit 1; }

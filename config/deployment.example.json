@@ -108,7 +108,19 @@
     "live_browser": "advisory",
     "e2e_framework": "cypress",
     "e2e_dir": "e2e",
-    "live_browser_driver": "playwright_mcp"
+    "live_browser_driver": "playwright_mcp",
+    "hermetic": {
+      "enabled": true,
+      "_note": "SAFETY (B3). The engine must NEVER drive QA/tests/the live app against PRODUCTION services. Before ANY test/build/app/live run, the engine exports these overrides so external calls hit local/sandbox or are blanked. doctor flags prod-looking endpoints in .env/config and FAILS unless hermetic.enabled overrides them.",
+      "env": {
+        "ELASTICSEARCH_URL": "http://localhost:9200",
+        "TWILIO_AUTH_TOKEN": "",
+        "TWILIO_ACCOUNT_SID": "",
+        "MAILGUN_API_KEY": "",
+        "POSTGRID_API_KEY": ""
+      },
+      "forbid_endpoints": ["*.found.io", "*.es.io", "*cloud.es.io", "api.twilio.com", "*.twilio.com", "api.mailgun.net", "*.mailgun.org", "*.postgrid.com"]
+    }
   },
 
   "review": {

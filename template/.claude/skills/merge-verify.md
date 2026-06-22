@@ -15,6 +15,8 @@ This is the engine's answer to classic "it worked on my local." Invoked by
 the human merge to `{{DEFAULT_BRANCH}}`.
 
 ## 1 · Clean-room integration check (after a merge into the feature branch)
+- **Hermetic (B3 · SAFETY)** — export `qa.hermetic.env` first; the clean-room run
+  (incl. the live smoke) must NEVER hit production services/creds.
 - **Fresh state** — a clean checkout/worktree of the merged feature branch, NOT
   the dev's warm tree (`git clean -fdx` equivalent / separate worktree).
 - **Clean install from the lockfile** — `{{CMD_INSTALL}}` (e.g. `npm ci`). Never
