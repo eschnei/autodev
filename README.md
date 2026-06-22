@@ -5,8 +5,9 @@ ticketing board (Linear), driven by Claude Code — mimicking a PM → dev team,
 operable by non-technical people. It's **reusable**: it installs into *any* client
 repo from a single config file.
 
-> **Validated end-to-end** in a sandbox: a 15-story / 5-epic landing page built
-> autonomously (144 unit + 24 e2e green), plus a proven dev↔QA bounce-back loop.
+> **Validated end-to-end** in a sandbox (a 15-story landing page built autonomously,
+> 144 unit + 24 e2e green) **and hardened by a 20-hour autonomous production run** —
+> the gaps that surfaced are folded back in (see [`BACKLOG.md`](./BACKLOG.md)).
 >
 > **Open source (Apache-2.0).** Free to self-host. **Managed hosting + onboarding
 > available** — see [Managed service](#managed-service).
@@ -17,22 +18,25 @@ repo from a single config file.
 autoDev/
 ├── config/deployment.example.json   # per-client config — copy + fill in
 ├── install.sh                       # render the engine in + auto-create the Linear board
+├── BACKLOG.md                       # roadmap + run-gap audit (what's shipped / planned)
 ├── template/
 │   ├── .claude/
-│   │   ├── CLAUDE.md                 # concierge + rulebook + hierarchy/mode toggles
+│   │   ├── CLAUDE.md                 # concierge + rulebook + all the toggles
 │   │   ├── settings.json            # allowlisted permissions (bot can't merge to main)
+│   │   ├── commands/devloop.md      # the /devloop SLASH command (heartbeat entry)
 │   │   └── skills/
-│   │       ├── intake.md            # plain-English front door · feature-vs-bug gate · cli|linear mode
+│   │       ├── intake.md            # plain-English front door · feature-vs-bug gate · cli|linear · attaches wireframes
 │   │       ├── prd.md               # PRD (BrainGrid preferred · agent fallback) → Gate 1
-│   │       ├── breakdown.md         # → Project · Milestones · Issues (+ deps, risk, persona)
-│   │       ├── devloop.md           # one heartbeat: dev → QA → merge, live board moves
-│   │       ├── merge-verify.md      # post-merge clean-room QA + report + prod sign-off
+│   │       ├── breakdown.md         # → Project · Milestones · Issues (full BrainGrid spec copied in)
+│   │       ├── devloop.md           # one heartbeat: dev → QA → merge · live board moves + comment logging
+│   │       ├── merge-verify.md      # acceptance QA + post-merge clean-room + report + prod sign-off
 │   │       └── _story-template.md   # the story contract
 │   ├── scripts/
-│   │   ├── linear.mjs               # one tested Linear helper (retry/backoff) — no ad-hoc curl
-│   │   ├── doctor.sh                # preflight: tools + token + config ids vs LIVE Linear
-│   │   ├── devloop-tick.sh          # timer entry: portable lock + rate-limit gate + tick
-│   │   ├── watchdog.sh              # dead-man alarm → files a Linear story
+│   │   ├── linear.mjs               # the Linear helper (move/comment/show/update/relate/attach/create-… )
+│   │   ├── report.mjs               # periodic operator digest (reporting.cadence)
+│   │   ├── doctor.sh                # preflight: tools · toolchain · token · config ids · hermetic safety
+│   │   ├── devloop-tick.sh          # timer entry: portable lock + rate-limit gate + tick + digest
+│   │   ├── watchdog.sh              # dead-man alarm + hung-tick recovery → Linear
 │   │   └── notify.sh                # rate-limit pause/resume → Linear
 │   └── ops/{launchd.plist.template, linear-setup.md}
 └── docs/
@@ -62,11 +66,17 @@ The engine is **client-agnostic**; everything per-client lives in the one config
 - **dev↔QA loops until it passes** — QA fail → back to dev → retry, *unbounded while
   making progress*; a **stuck-detector** escalates to a human only on no-progress
   (= "ask, don't invent").
-- **Post-merge clean-room verify** — fresh checkout + clean install + full suite +
-  live smoke after every merge (auto-revert on fail) → report → **human prod sign-off**.
-  Kills "worked on my local."
+- **Post-merge clean-room verify + whole-feature acceptance** — fresh checkout +
+  clean install + integrated suites + live smoke after every merge (auto-revert on
+  fail) → acceptance report → **human prod sign-off**. Kills "worked on my local."
+- **Hermetic always (safety)** — every test/build/app/live run applies
+  `qa.hermetic` overrides; the engine **never** drives QA or the live app against
+  production services/creds, and `doctor` fails on prod endpoints in `.env`.
 - **Feature-vs-bug gate** at intake — bugs are flagged for triage, not built (v1).
-- **Stateless heartbeat** passes · rate-limit auto-pause/resume · dead-man watchdog.
+- **Glass-box observability** — status moves + per-tick comment logging + an
+  operator digest + a per-feature stats record (`.autodev/metrics.jsonl`).
+- **Stateless heartbeat** passes · rate-limit auto-pause/resume · dead-man watchdog
+  (with hung-tick recovery).
 
 ## Toggles (preferred-optional, degrade gracefully)
 
@@ -75,7 +85,12 @@ The engine is **client-agnostic**; everything per-client lives in the one config
 | `braingrid.enabled` | BrainGrid spec authoring **or** agent (PM + PjM) fallback | `true` |
 | `intake.mode` | `cli` (in-session) **or** `linear` (ticket + comments, no terminal) | `cli` |
 | `tracker.hierarchy` | `issue` (feature on the board) **or** `project` (feature-as-Project, org-wide statuses) | `issue` |
-| `review.granularity` | `per_story` (review each) **or** `per_feature` (auto-merge to feature branch; review the whole) | `per_story` |
+| `review.granularity` | `per_story` (review each) **or** `per_feature` (auto-merge to branch; review the whole) | `per_story` |
+| `review.delivery` | `draft_pr` (push + GitHub PRs) **or** `local_diff` (no GitHub — local branches + diffs only) | `draft_pr` |
+| `review.quality_review` | leanness/dedup pass over the assembled feature diff at close-out | `true` |
+| `execution.logging` | `quiet` (status only) · `normal` (checkpoint comments) · `verbose` (+ diffs) | `normal` |
+| `execution.incremental_breakdown` | break down the whole feature at Gate 1 **or** per-milestone on demand | `false` |
+| `reporting.cadence` | operator digest: `off` · `hourly` · `<N>m` → log / slack / linear | `off` |
 
 ## BrainGrid CLI + Claude Code (optional spec tool)
 
@@ -122,9 +137,12 @@ them — install them into `~/.claude/agents/` from that repo; routing lives in
 
 ## Status
 
-**v1 — complete, hardened, validated.** Engine, installer, helper, doctor, and all
-skills in place; proven end-to-end in a sandbox (full feature build + dev↔QA loop).
-Next: deploy onto a dedicated always-on machine and enable the 24/7 timer.
+**v1 — complete, validated, and hardened by a real run.** Proven end-to-end in a
+sandbox (full feature build + dev↔QA loop), then run **20 hours autonomously on a
+production codebase** — every gap that surfaced is folded back in ([`BACKLOG.md`](./BACKLOG.md)):
+hermetic safety, acceptance QA, leanness review, operator digest, per-feature metrics,
+hung-tick recovery, a self-sufficient Linear helper, and more. Next: deploy onto a
+dedicated always-on machine and enable the 24/7 timer.
 
 ## Managed service
 
