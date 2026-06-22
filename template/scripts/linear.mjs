@@ -17,6 +17,7 @@
 //   node linear.mjs create-issue --title T [--desc D] [--stage key] [--labels a,b] [--project ID] [--milestone ID]
 //   node linear.mjs update-issue <ISSUE> [--title T] [--desc D] [--stage key] [--labels a,b]
 //   node linear.mjs relate <ISSUE> <RELATED> [--type blocks|related|duplicate]   # default blocks
+//   node linear.mjs attach <ISSUE> <url> [--title T]   # wireframes / designs / Figma
 //   node linear.mjs create-project --name N [--desc D]
 //   node linear.mjs create-milestone --project ID --name N
 //
@@ -173,6 +174,15 @@ const cmds = {
     const nodes = d.issue?.comments?.nodes || [];
     if (!nodes.length) { console.log('(no comments)'); return; }
     for (const c of nodes) console.log(`— ${c.user?.name || '?'} · ${c.createdAt}\n${c.body}\n`);
+  },
+  async attach(token, cfg, a) {            // C1 — attach <issue> <url> [--title T]  (wireframes / designs / Figma)
+    const id = await issueId(token, a[0]);
+    const url = a[1];
+    if (!url) die('attach needs <issue> <url>');
+    const title = flags(a.slice(2)).title || url.split('/').filter(Boolean).pop() || 'attachment';
+    const d = await gql(token, 'mutation($i:AttachmentCreateInput!){attachmentCreate(input:$i){success attachment{id title}}}', { i: { issueId: id, url, title } });
+    if (!d.attachmentCreate.success) die('attach failed');
+    console.log(`ok: attached "${d.attachmentCreate.attachment.title}"`);
   },
   async 'create-issue'(token, cfg, a) {
     const f = flags(a);

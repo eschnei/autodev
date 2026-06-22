@@ -87,9 +87,10 @@ The steps below are identical in both modes — only the *medium* differs
    it (on a working branch, not `{{DEFAULT_BRANCH}}`).
    - **Wireframes/designs (C1):** if the request includes mockups/wireframes,
      **preserve them visually** — save the image files under
-     `specs/<feature-slug>/design/` and **attach (or link) them on the feature
-     ticket** (Linear attachment, or a prominent Figma/URL link). Never reduce a
-     design to a text summary; downstream dev + manual QA need the actual visuals.
+     `specs/<feature-slug>/design/` and **attach them to the feature ticket** with
+     `node scripts/autodev/linear.mjs attach <issue> <url> --title "<name>"` (a
+     Figma/hosted URL; for local images, host or link them). Never reduce a design
+     to a text summary; downstream dev + manual QA (C2) need the actual visuals.
 
 4. **Create the feature** (per `tracker.hierarchy` — see CLAUDE.md):
    - **`issue` (default):** create a **feature ISSUE** in `New Request` (team

@@ -138,7 +138,7 @@ Governs whether the engine touches GitHub. **This is authoritative; every "push"
   **{{MERGE_F2M}}** (human-merged).
 - BrainGrid project: **{{BG_PROJECT}}**. Linear workspace: **{{LINEAR_TEAM}}**.
 - **Linear ops — always use the helper, never hand-rolled curl:**
-  `node scripts/autodev/linear.mjs <move|comment|show|list-comments|create-issue|update-issue|relate|create-project|create-milestone|state-id|whoami|doctor> …`
+  `node scripts/autodev/linear.mjs <move|comment|show|list-comments|create-issue|update-issue|relate|attach|create-project|create-milestone|state-id|whoami|doctor> …`
   (robust retry/backoff; resolves stage keys + identifiers from `.autodev/deployment.json`).
 - **Preflight before a run:** `scripts/autodev/doctor.sh` — validates tools, token, and
   config status ids against live Linear. Fix any ✗ before proceeding.
