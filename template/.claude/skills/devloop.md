@@ -203,6 +203,12 @@ When all of the epic's stories are merged into the feature branch and it's green
   post-deploy smoke against the real environment → report → **human final prod
   sign-off**.
 - Merge style: story→feature = `{{MERGE_S2F}}`; feature→main = `{{MERGE_F2M}}`.
+- 📊 **Feature stats (B8 — if `reporting.feature_stats`):** record a stats line for
+  the shipped feature. Compute: name · started→shipped dates · elapsed wall time ·
+  #epics/#stories · lines `git diff --shortstat {{DEFAULT_BRANCH}}...{{FEATURE_PREFIX}}<slug>`
+  · dev↔QA loop rounds · QA verdicts (what was caught). Write it **two ways**:
+  (1) a human summary **comment on the feature** (`linear.mjs comment`), and
+  (2) append one JSON object to **`.autodev/metrics.jsonl`** (the portfolio rollup).
 - Release the one-feature lock → next queued epic.
 
 ## 9 · Exit

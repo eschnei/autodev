@@ -95,6 +95,17 @@
     "_logging_note": "How much the dev/QA steps narrate into Linear COMMENTS (status = where; comments = what). normal (default) = emoji checkpoint comments at dev start/done, each QA verdict, each dev↔QA round, gates/Blocked. quiet = status moves only. verbose = also attach diffs/sub-steps for debugging."
   },
 
+  "reporting": {
+    "cadence": "off",
+    "_cadence_note": "B4 — periodic OPERATOR DIGEST (distinct from per-tick logging): off | hourly | <N>m | <N>h. report.mjs runs each tick and emits only when the window elapses — a cheap (no-Claude) rollup of in-flight / awaiting-you / blocked / done + commits + engine status.",
+    "destination": "log",
+    "_destination_note": "log (.autodev/logs/report.log) | slack (set slack_webhook or $SLACK_WEBHOOK) | linear (set linear_issue = an issue id to comment on).",
+    "slack_webhook": "",
+    "linear_issue": "",
+    "feature_stats": true,
+    "_feature_stats_note": "B8 — at feature close-out, post a stats comment + append a line to .autodev/metrics.jsonl: name, started/shipped dates, elapsed, #stories, lines +/-, dev↔QA rounds, QA verdicts. Rolls up to portfolio metrics."
+  },
+
   "commands": {
     "install": "meteor npm install",
     "test": "meteor npm test",

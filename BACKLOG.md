@@ -44,14 +44,14 @@ by hand. → `doctor` flags prod-looking endpoints; a **`qa.hermetic`** mode ove
 external endpoints (local ES, blanked comms) for any QA/live run. **The engine must
 never drive the live app against prod creds.**
 
-### B4 · `reporting.cadence` progress-report toggle — **HIGH** (operator ask)
+### B4 · `reporting.cadence` progress-report toggle — **HIGH** (operator ask) — ✅ SHIPPED
 Native periodic operator **digest** (`off | hourly | <N>m`), distinct from the
 per-tick glass-box comments — a rollup of elapsed, merged/in-flight/blocked since
 last, pace/ETA, wall status, anything awaiting a human → a destination
 (notification / Slack / feature-issue comment). Replaces manual self-scheduled
 check-ins. *(Small, self-contained.)*
 
-### B5 · `linear.mjs` helper gaps — **MEDIUM** (quick win)
+### B5 · `linear.mjs` helper gaps — **MEDIUM** (quick win) — ✅ SHIPPED
 Repeatedly fell back to raw GraphQL because the helper can't:
 - **`update-issue`** — update an issue description/fields.
 - **`relate` / `link`** — set `blocked-by` relations (dependency-gating leaned on creation order).
@@ -68,7 +68,7 @@ Adding these makes the helper self-sufficient (no raw-GraphQL fallback).
 installed) and flag loose `.tool-versions` pins (the `elixir 1.17` partial that
 didn't resolve). Mostly deployment-env, not engine.
 
-### B8 · Per-feature stats record — **MEDIUM** (reporting family; pairs with B4)
+### B8 · Per-feature stats record — **MEDIUM** — ✅ SHIPPED
 At feature close-out, emit a **stats record** for every feature the engine ships, so
 there's a portfolio track record over time. Capture: **name**, started/shipped
 **dates**, **elapsed wall time**, # epics/stories, **lines** added/removed + files
@@ -92,5 +92,4 @@ hours — sales-ready numbers). Config: `reporting.feature_stats` (on/off + dest
 ---
 
 ## Suggested order
-B3 (safety) ✅ → B5 (quick, unblocks dependency-gating + reads) → B4 (operator digest)
-→ B8 (feature stats — pairs with B4) → B1 (acceptance QA) → B2 (leanness) → B6 → C1/C2 → B7.
+B3 ✅ → B5 ✅ → B4 ✅ → B8 ✅ → B1 (acceptance QA) → B2 (leanness) → B6 → C1/C2 → B7.

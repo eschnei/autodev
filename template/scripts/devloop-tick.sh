@@ -38,3 +38,7 @@ if echo "$OUT" | jq -e '.is_error and (.result // "" | ascii_downcase
   echo "$reset" > "$PAUSE"
   "$(dirname "$0")/notify.sh" limited "$reset"
 fi
+
+# --- operator digest (B4): cheap, self-gates on reporting.cadence; no-op if off/not-due ---
+AUTODEV_CONFIG="$REPO/.autodev/deployment.json" RUN_HOME="$RUN_HOME" \
+  node "$(dirname "$0")/report.mjs" >/dev/null 2>>"$RUN_HOME/logs/err.log" || true
