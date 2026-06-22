@@ -116,11 +116,11 @@ persistent marker `.autodev/.test_db_seeded` is absent**; on a successful seed,
 `touch .autodev/.test_db_seeded`. Each heartbeat tick is a fresh session, so a
 per-session check is not enough — re-seeding a populated test DB violates unique
 constraints / accumulates data. (Delete the marker to force a re-seed after a DB reset.)
-**Also run `qa.seed_search` (C3) if set** — seed the search-index mapping (e.g.
-Elasticsearch), gated by `.autodev/.search_seeded`, hermetically; search/index tests
-need the mapping, not just the SQL DB. Run each layer via `qa.test_layers.*` exactly as configured — those
+`qa.seed_test` seeds **all** the app's test datastores (DB + any search index / queue /
+cache the tests need) — it's whatever the client configures, stack-agnostic.
+Run each layer via `qa.test_layers.*` exactly as configured — those
 strings already encode the required exclusions/concurrency (e.g. `--exclude=buggy
---max-cases`); do **not** substitute a bare `mix test`, or known-baseline/contention
+--max-cases`); do **not** substitute the framework's bare/raw test command, or known-baseline/contention
 failures will produce false reds. A layer with a documented `qa._known_baseline`
 issue (e.g. pre-existing broken suites) is judged against that baseline, not zero.
 
@@ -131,8 +131,9 @@ the dev agent. Each run re-derives its verdict from artifacts and is asked "did
 we hallucinate this?":
 - **Conformance** (`code-reviewer`, `test-results-analyzer`, `evidence-collector`):
   suite passes; diff meets each criterion; **evidence-collector** exercises it
-  live against the running app (`{{CMD_APP_RUN}}` → `{{APP_URL}}`; `{{E2E_DIR}}`
-  Cypress for UI, `api-tester` for non-UI) and attaches **screenshots**.
+  live against the running app (`{{CMD_APP_RUN}}` → `{{APP_URL}}`; the configured
+  e2e framework (`qa.e2e_framework`) in `{{E2E_DIR}}` for UI, `api-tester` for
+  non-UI) and attaches **screenshots**.
   **Visual diff (C2):** if the story has wireframes attached (C1), compare the built
   screen against them and flag visual mismatches (advisory like the live check — a
   mismatch flags for the human, doesn't hard-block).

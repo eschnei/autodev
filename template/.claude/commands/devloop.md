@@ -12,9 +12,10 @@ results back to Linear + git, then exit.
 
 This is a **non-interactive headless run**:
 - Use only pre-allowed tools; do not wait for human input mid-pass.
-- **Never push / open a PR** — this deployment is local-only (`review.delivery: local_diff`);
-  a pre-push hook will reject any push regardless.
+- **Honor `review.delivery`** (CLAUDE.md): in `local_diff`, never push / open a PR — keep
+  everything local (a pre-push hook rejects pushes); in `draft_pr`, push feature/story
+  branches + open draft PRs (never merge the default branch).
 - If a story is genuinely blocked (ambiguous spec, missing human-only setup), move it to
   the Blocked column with the specific question and continue with other eligible work.
-- Source the toolchain before running build/test commands:
-  `source .autodev/env.sh` (puts mix/elixir/pnpm/node on PATH).
+- If the repo needs its toolchain on PATH first, source it (e.g. `source .autodev/env.sh`)
+  before running the configured build/test commands.

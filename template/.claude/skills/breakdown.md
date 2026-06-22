@@ -78,6 +78,11 @@ Read `.autodev/deployment.json` for: tracker states/labels, BrainGrid project,
    epics to run at a time; if another feature is already in flight, this one waits
    its turn by priority (its stories sit in `Ready for AI Dev`).
 
+> **Incremental breakdown (B6 — if `execution.incremental_breakdown`):** for a big
+> feature, don't decompose everything at Gate 1. Break down **one milestone/epic at
+> a time on demand** — create the next milestone's stories when the prior milestone
+> is in flight — so the queue stays fed without one huge upfront pass.
+
 ## Output
 
 Tell the operator: N stories created, the dependency shape, the risk-class mix,

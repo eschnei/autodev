@@ -125,20 +125,18 @@
     "docker_up": "docker compose up -d",
     "_docker_up_note": "A6 — bring up DATA SERVICES only (DB/cache/search/mail), not the app container (it clashes with the locally-run server/UI).",
     "seed_test": "",
-    "_seed_test_note": "A4 — seed the test DB. The engine seeds ONCE across stateless ticks via the persistent .autodev/.test_db_seeded marker (re-seeding corrupts the DB).",
-    "seed_search": "",
-    "_seed_search_note": "C3 — seed the search-index MAPPING (e.g. Elasticsearch), not just the SQL DB; search/index tests need it. Runs hermetically alongside seed_test.",
+    "_seed_test_note": "A4 — command to seed ALL test datastores this app needs (SQL DB, and any search index / queue / cache the tests rely on — put it all here, stack-agnostic). The engine seeds ONCE across stateless ticks via the persistent .autodev/.test_db_seeded marker (re-seeding corrupts state).",
     "hermetic": {
       "enabled": true,
       "_note": "SAFETY (B3). The engine must NEVER drive QA/tests/the live app against PRODUCTION services. Before ANY test/build/app/live run, the engine exports these overrides so external calls hit local/sandbox or are blanked. doctor flags prod-looking endpoints in .env/config and FAILS unless hermetic.enabled overrides them.",
+      "_env_note": "ILLUSTRATIVE — replace with YOUR app's external services. Point each at a local/sandbox endpoint, or blank ('') the credential to disable the call. (Examples below: a search service + an SMS + an email provider — swap for whatever your stack uses.)",
       "env": {
-        "ELASTICSEARCH_URL": "http://localhost:9200",
-        "TWILIO_AUTH_TOKEN": "",
-        "TWILIO_ACCOUNT_SID": "",
-        "MAILGUN_API_KEY": "",
-        "POSTGRID_API_KEY": ""
+        "SEARCH_URL": "http://localhost:9200",
+        "SMS_API_TOKEN": "",
+        "EMAIL_API_KEY": ""
       },
-      "forbid_endpoints": ["*.found.io", "*.es.io", "*cloud.es.io", "api.twilio.com", "*.twilio.com", "api.mailgun.net", "*.mailgun.org", "*.postgrid.com"]
+      "_forbid_note": "ILLUSTRATIVE — list YOUR prod hostnames so doctor can flag them in .env. Common SaaS shown as examples.",
+      "forbid_endpoints": ["*.twilio.com", "api.mailgun.net", "api.sendgrid.com", "api.stripe.com"]
     },
     "acceptance": {
       "_note": "B1 — whole-feature acceptance QA (merge-verify §2), run on the assembled branch before the human gate. Catches cross-suite flakiness the per-story gates miss + verifies the system as a whole.",

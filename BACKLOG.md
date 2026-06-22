@@ -81,16 +81,16 @@ hours — sales-ready numbers). Config: `reporting.feature_stats` (on/off + dest
 
 ---
 
-## Part C — Visual fidelity gaps — ✅ ALL SHIPPED
+## Part C — Visual fidelity gaps — C1 ✅ · C2 mechanism wired · C3 removed (client-specific)
 
 | # | Gap | Fix |
 |---|-----|-----|
 | C1 | Intake/PRD **summarizes** wireframes as text, losing visual fidelity. | **Attach (or link) the wireframe images on the feature ticket** so they're preserved + reviewable. |
 | C2 | Manual-QA step has no visual check against the design. | **Visual diff** of the built UI against those wireframes at the manual-QA step. |
-| C3 | ES (Elasticsearch) **mapping seed gap** — search/index tests needed the ES mapping seeded, not just the SQL DB. | Extend `qa.seed_test` (or a `qa.seed_search`) to seed the search index mapping in hermetic mode. |
+| C3 | ~~ES mapping seed gap~~ — **REMOVED as client-specific.** Elasticsearch is HavenConnect's stack, not generic. | Generalized into **`qa.seed_test`**: it seeds *all* the app's test datastores (DB + any search index/queue/cache) — whatever the client configures. No ES-specific field in the engine. |
 
 ---
 
 ## Suggested order
-B3 ✅ → B5 ✅ → B4 ✅ → B8 ✅ → B1 ✅ → B2 ✅ → B6 ✅ → C1/C2/C3 ✅ → B7 ✅
-**— entire backlog shipped.** 🎉
+B3 ✅ → B5 ✅ → B4 ✅ → B8 ✅ → B1 ✅ → B2 ✅ → B6 ✅ → C1 ✅ → C2 (mechanism; needs a wireframe to exercise) → ~~C3~~ removed (client-specific) → B7 ✅
+**— backlog shipped; engine kept client-agnostic.**

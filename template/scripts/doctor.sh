@@ -36,9 +36,9 @@ git -C "$REPO" show-ref --verify --quiet "refs/heads/$BRANCH" 2>/dev/null \
 echo "toolchain (B7):"
 if [[ -f "$REPO/.tool-versions" ]]; then
   if command -v asdf >/dev/null; then
-    # flag any partial/loose pin (e.g. "elixir 1.17" that doesn't resolve to an installed version)
+    # flag any partial/loose pin (a major.minor with no installed patch won't resolve)
     if (cd "$REPO" && asdf current 2>&1 | grep -qiE "not installed|no version|No preset"); then
-      bad ".tool-versions has unresolved/uninstalled pins — run 'asdf install' (loose pins like 'elixir 1.17' don't resolve)"
+      bad ".tool-versions has unresolved/uninstalled pins — run 'asdf install' (a loose 'lang X.Y' with no installed patch doesn't resolve)"
       (cd "$REPO" && asdf current 2>&1 | grep -iE "not installed|no version" | sed 's/^/      /')
     else
       ok ".tool-versions resolves (asdf)"
