@@ -68,6 +68,17 @@ Adding these makes the helper self-sufficient (no raw-GraphQL fallback).
 installed) and flag loose `.tool-versions` pins (the `elixir 1.17` partial that
 didn't resolve). Mostly deployment-env, not engine.
 
+### B8 · Per-feature stats record — **MEDIUM** (reporting family; pairs with B4)
+At feature close-out, emit a **stats record** for every feature the engine ships, so
+there's a portfolio track record over time. Capture: **name**, started/shipped
+**dates**, **elapsed wall time**, # epics/stories, **lines** added/removed + files
+changed, **dev↔QA loop rounds**, QA verdicts (pass counts / what was caught), and
+(optional) ticks/tokens spent.
+→ Write **two ways**: a human-readable summary **comment on the feature** (Linear
+issue / Project), and a machine-readable append to **`.autodev/metrics.jsonl`** so
+they roll up across features (engine throughput, avg cycle time, $ saved vs. human
+hours — sales-ready numbers). Config: `reporting.feature_stats` (on/off + destination).
+
 ---
 
 ## Part C — Visual fidelity gaps
@@ -81,5 +92,5 @@ didn't resolve). Mostly deployment-env, not engine.
 ---
 
 ## Suggested order
-B3 (safety) → B5 (quick, unblocks dependency-gating + reads) → B4 (operator digest)
-→ B1 (acceptance QA) → B2 (leanness) → B6 → C1/C2 → B7.
+B3 (safety) ✅ → B5 (quick, unblocks dependency-gating + reads) → B4 (operator digest)
+→ B8 (feature stats — pairs with B4) → B1 (acceptance QA) → B2 (leanness) → B6 → C1/C2 → B7.
