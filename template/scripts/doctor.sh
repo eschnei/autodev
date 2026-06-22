@@ -54,15 +54,18 @@ fi
 
 echo "hermetic safety (B3):"
 HERM=$(jq -r '.qa.hermetic.enabled // false' "$CONFIG")
-# scan local env files for prod-looking external endpoints
+# scan local env files for prod-looking external endpoints (fixed-string match on
+# the de-globbed core domain: "*.twilio.com" -> "twilio.com")
 ENVHITS=""
-for ef in "$REPO/.env" "$REPO/.env.test" "$REPO/.env.local" "$REPO/config/.env"; do
-  [[ -f "$ef" ]] || continue
-  while IFS= read -r pat; do
-    [[ -z "$pat" ]] && continue
-    grep -qiE "${pat//\*/[^[:space:]\"']*}" "$ef" 2>/dev/null && ENVHITS+="$pat($(basename "$ef")) "
-  done < <(jq -r '.qa.hermetic.forbid_endpoints[]?' "$CONFIG")
-done
+while IFS= read -r pat; do
+  [[ -z "$pat" ]] && continue
+  core=${pat#\*}; core=${core#.}
+  for ef in "$REPO/.env" "$REPO/.env.test" "$REPO/.env.local" "$REPO/config/.env"; do
+    [[ -f "$ef" ]] || continue
+    grep -qiF "$core" "$ef" 2>/dev/null && ENVHITS+="$core "
+  done
+done < <(jq -r '.qa.hermetic.forbid_endpoints[]?' "$CONFIG")
+ENVHITS=$(printf '%s' "$ENVHITS" | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ *$//')
 if [[ -n "$ENVHITS" ]]; then
   if [[ "$HERM" == "true" ]]; then
     warn "prod-looking endpoints in env: $ENVHITS — OK only because qa.hermetic overrides them at run time"
