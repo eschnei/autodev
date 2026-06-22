@@ -12,7 +12,11 @@
 //   node linear.mjs state-id <stageKey>          # e.g. ai_qa -> the live state UUID
 //   node linear.mjs move <ISSUE> <stageKey>      # ISSUE = identifier (ADX-4) or UUID
 //   node linear.mjs comment <ISSUE> "<markdown>"
+//   node linear.mjs show <ISSUE>                 # title/state/assignee/labels/url/description
+//   node linear.mjs list-comments <ISSUE>
 //   node linear.mjs create-issue --title T [--desc D] [--stage key] [--labels a,b] [--project ID] [--milestone ID]
+//   node linear.mjs update-issue <ISSUE> [--title T] [--desc D] [--stage key] [--labels a,b]
+//   node linear.mjs relate <ISSUE> <RELATED> [--type blocks|related|duplicate]   # default blocks
 //   node linear.mjs create-project --name N [--desc D]
 //   node linear.mjs create-milestone --project ID --name N
 //
@@ -134,6 +138,41 @@ const cmds = {
     const d = await gql(token, 'mutation($i:CommentCreateInput!){commentCreate(input:$i){success}}', { i: { issueId: id, body: a[1] } });
     if (!d.commentCreate.success) die('comment failed');
     console.log('ok');
+  },
+  // B5 — make the helper self-sufficient (no raw-GraphQL fallback)
+  async 'update-issue'(token, cfg, a) {
+    const id = await issueId(token, a[0]);
+    const f = flags(a.slice(1));
+    const input = {};
+    if (f.title) input.title = f.title;
+    if (f.desc) input.description = f.desc;
+    if (f.stage) input.stateId = stateId(cfg, f.stage);
+    if (f.labels) input.labelIds = await labelIds(token, cfg, f.labels.split(','));
+    if (Object.keys(input).length === 0) die('update-issue: use --title/--desc/--stage/--labels');
+    const d = await gql(token, 'mutation($id:String!,$i:IssueUpdateInput!){issueUpdate(id:$id,input:$i){success issue{identifier}}}', { id, i: input });
+    if (!d.issueUpdate.success) die('update-issue failed');
+    console.log(`${d.issueUpdate.issue.identifier} updated`);
+  },
+  async relate(token, cfg, a) {           // relate <issue> <relatedIssue> [--type blocks|related|duplicate]
+    const issue = await issueId(token, a[0]);
+    const related = await issueId(token, a[1]);
+    const type = flags(a.slice(2)).type || 'blocks';   // "<issue> blocks <related>" → related is blocked by issue
+    const d = await gql(token, 'mutation($i:IssueRelationCreateInput!){issueRelationCreate(input:$i){success}}', { i: { issueId: issue, relatedIssueId: related, type } });
+    if (!d.issueRelationCreate.success) die('relate failed');
+    console.log(`ok: ${a[0]} ${type} ${a[1]}`);
+  },
+  async show(token, cfg, a) {
+    const d = await gql(token, 'query($id:String!){issue(id:$id){identifier title url state{name} assignee{name} labels{nodes{name}} description}}', { id: a[0] });
+    if (!d.issue) die(`not found: ${a[0]}`);
+    const i = d.issue;
+    console.log(`${i.identifier}  ${i.title}\nstate: ${i.state?.name || '—'} · assignee: ${i.assignee?.name || '—'} · labels: ${(i.labels?.nodes || []).map((n) => n.name).join(', ') || '—'}\n${i.url}\n\n${i.description || '(no description)'}`);
+  },
+  async 'list-comments'(token, cfg, a) {
+    const id = await issueId(token, a[0]);
+    const d = await gql(token, 'query($id:String!){issue(id:$id){comments(first:100){nodes{user{name} createdAt body}}}}', { id });
+    const nodes = d.issue?.comments?.nodes || [];
+    if (!nodes.length) { console.log('(no comments)'); return; }
+    for (const c of nodes) console.log(`— ${c.user?.name || '?'} · ${c.createdAt}\n${c.body}\n`);
   },
   async 'create-issue'(token, cfg, a) {
     const f = flags(a);

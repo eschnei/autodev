@@ -50,7 +50,9 @@ Read `.autodev/deployment.json` for: tracker states/labels, BrainGrid project,
      content didn't already cover):
      - **Acceptance criteria** (objective, testable — the contract) · **AI QA steps**
        + **manual test steps** · **Tests required** note.
-     - **`blocked by` links** for dependencies (Linear issue relations).
+     - **`blocked by` links** for dependencies — set them explicitly with
+       `node scripts/autodev/linear.mjs relate <blocker> <story> --type blocks`
+       (don't rely on creation order).
      - **Touched files** — feeds the lane file-overlap guard + persona routing.
      - **`risk:` class** — `trivial` / `standard` / `sensitive` (isolated+well-tested
        → trivial; auth/data/money/migrations/security → sensitive). Drives review depth.
