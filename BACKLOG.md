@@ -58,12 +58,12 @@ Repeatedly fell back to raw GraphQL because the helper can't:
 - **`show` / `list-comments`** — read status + comments.
 Adding these makes the helper self-sufficient (no raw-GraphQL fallback).
 
-### B6 · Heartbeat operability — **MEDIUM**
+### B6 · Heartbeat operability — **MEDIUM** — ✅ SHIPPED
 - **Hung-tick detection** in the watchdog (no new commit/jsonl + lock age → recover / clear stale lock). "Long-but-productive vs hung" was judged by hand.
 - **Status-reconcile timing** — in `per_feature`, the merge happened but Linear status lagged at AI-Dev/QA until the next reconcile (glass-box drift). Move → `done` in the merging tick.
 - **Incremental breakdown** — engine breaks down the whole feature at Gate 1; per-milestone, on-demand breakdown keeps the queue fed without one huge upfront pass. Config option.
 
-### B7 · Toolchain/env preflight — **LOW**
+### B7 · Toolchain/env preflight — **LOW** — ✅ SHIPPED
 `doctor` should validate the executable toolchain (asdf versions resolve, deps
 installed) and flag loose `.tool-versions` pins (the `elixir 1.17` partial that
 didn't resolve). Mostly deployment-env, not engine.
@@ -81,7 +81,7 @@ hours — sales-ready numbers). Config: `reporting.feature_stats` (on/off + dest
 
 ---
 
-## Part C — Visual fidelity gaps
+## Part C — Visual fidelity gaps — ✅ ALL SHIPPED
 
 | # | Gap | Fix |
 |---|-----|-----|
@@ -92,4 +92,5 @@ hours — sales-ready numbers). Config: `reporting.feature_stats` (on/off + dest
 ---
 
 ## Suggested order
-B3 ✅ → B5 ✅ → B4 ✅ → B8 ✅ → B1 ✅ → B2 ✅ → **remaining: B6 → C1/C2/C3 → B7**.
+B3 ✅ → B5 ✅ → B4 ✅ → B8 ✅ → B1 ✅ → B2 ✅ → B6 ✅ → C1/C2/C3 ✅ → B7 ✅
+**— entire backlog shipped.** 🎉

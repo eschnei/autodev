@@ -33,6 +33,23 @@ git -C "$REPO" show-ref --verify --quiet "refs/heads/$BRANCH" 2>/dev/null \
   || git -C "$REPO" ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1 \
   && ok "default branch '$BRANCH' exists" || warn "default branch '$BRANCH' not found locally/remotely"
 
+echo "toolchain (B7):"
+if [[ -f "$REPO/.tool-versions" ]]; then
+  if command -v asdf >/dev/null; then
+    # flag any partial/loose pin (e.g. "elixir 1.17" that doesn't resolve to an installed version)
+    if (cd "$REPO" && asdf current 2>&1 | grep -qiE "not installed|no version|No preset"); then
+      bad ".tool-versions has unresolved/uninstalled pins — run 'asdf install' (loose pins like 'elixir 1.17' don't resolve)"
+      (cd "$REPO" && asdf current 2>&1 | grep -iE "not installed|no version" | sed 's/^/      /')
+    else
+      ok ".tool-versions resolves (asdf)"
+    fi
+  else
+    warn ".tool-versions present but asdf not installed — can't verify the toolchain"
+  fi
+else
+  ok "no .tool-versions (toolchain check skipped)"
+fi
+
 echo "linear (live):"
 CLIENT=$(jq -r '.client_name' "$CONFIG")
 if [[ -n "${LINEAR_API_TOKEN:-}" ]] || [[ -f "$HOME/.config/autodev/$CLIENT.linear.token" ]]; then

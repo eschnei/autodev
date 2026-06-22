@@ -92,7 +92,9 @@
     "max_dev_qa_loops": 3,
     "self_review_rounds": 1,
     "logging": "normal",
-    "_logging_note": "How much the dev/QA steps narrate into Linear COMMENTS (status = where; comments = what). normal (default) = emoji checkpoint comments at dev start/done, each QA verdict, each dev↔QA round, gates/Blocked. quiet = status moves only. verbose = also attach diffs/sub-steps for debugging."
+    "_logging_note": "How much the dev/QA steps narrate into Linear COMMENTS (status = where; comments = what). normal (default) = emoji checkpoint comments at dev start/done, each QA verdict, each dev↔QA round, gates/Blocked. quiet = status moves only. verbose = also attach diffs/sub-steps for debugging.",
+    "incremental_breakdown": false,
+    "_incremental_breakdown_note": "B6 — false (default): /breakdown decomposes the WHOLE feature at Gate 1. true: decompose one MILESTONE/epic at a time, on demand, so the queue stays fed without a huge upfront pass (good for big features)."
   },
 
   "reporting": {
@@ -120,6 +122,12 @@
     "e2e_framework": "cypress",
     "e2e_dir": "e2e",
     "live_browser_driver": "playwright_mcp",
+    "docker_up": "docker compose up -d",
+    "_docker_up_note": "A6 — bring up DATA SERVICES only (DB/cache/search/mail), not the app container (it clashes with the locally-run server/UI).",
+    "seed_test": "",
+    "_seed_test_note": "A4 — seed the test DB. The engine seeds ONCE across stateless ticks via the persistent .autodev/.test_db_seeded marker (re-seeding corrupts the DB).",
+    "seed_search": "",
+    "_seed_search_note": "C3 — seed the search-index MAPPING (e.g. Elasticsearch), not just the SQL DB; search/index tests need it. Runs hermetically alongside seed_test.",
     "hermetic": {
       "enabled": true,
       "_note": "SAFETY (B3). The engine must NEVER drive QA/tests/the live app against PRODUCTION services. Before ANY test/build/app/live run, the engine exports these overrides so external calls hit local/sandbox or are blanked. doctor flags prod-looking endpoints in .env/config and FAILS unless hermetic.enabled overrides them.",

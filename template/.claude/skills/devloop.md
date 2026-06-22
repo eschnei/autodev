@@ -115,7 +115,10 @@ move the story to `blocked` with that exact warning.
 persistent marker `.autodev/.test_db_seeded` is absent**; on a successful seed,
 `touch .autodev/.test_db_seeded`. Each heartbeat tick is a fresh session, so a
 per-session check is not enough — re-seeding a populated test DB violates unique
-constraints / accumulates data. (Delete the marker to force a re-seed after a DB reset.) Run each layer via `qa.test_layers.*` exactly as configured — those
+constraints / accumulates data. (Delete the marker to force a re-seed after a DB reset.)
+**Also run `qa.seed_search` (C3) if set** — seed the search-index mapping (e.g.
+Elasticsearch), gated by `.autodev/.search_seeded`, hermetically; search/index tests
+need the mapping, not just the SQL DB. Run each layer via `qa.test_layers.*` exactly as configured — those
 strings already encode the required exclusions/concurrency (e.g. `--exclude=buggy
 --max-cases`); do **not** substitute a bare `mix test`, or known-baseline/contention
 failures will produce false reds. A layer with a documented `qa._known_baseline`
@@ -130,6 +133,9 @@ we hallucinate this?":
   suite passes; diff meets each criterion; **evidence-collector** exercises it
   live against the running app (`{{CMD_APP_RUN}}` → `{{APP_URL}}`; `{{E2E_DIR}}`
   Cypress for UI, `api-tester` for non-UI) and attaches **screenshots**.
+  **Visual diff (C2):** if the story has wireframes attached (C1), compare the built
+  screen against them and flag visual mismatches (advisory like the live check — a
+  mismatch flags for the human, doesn't hard-block).
 - **Adversarial** (`application-security-engineer`, `api-tester`): edge cases,
   bad/malicious inputs, error paths, security (injection, authz, data exposure).
 - **Regression** (`test-results-analyzer`, `reality-checker`): full suite +
@@ -172,8 +178,9 @@ Read `review.granularity`:
 
 - **`per_feature`** (the PM/dev-team model): the engine **squash-merges the story
   into the feature branch automatically** (no per-story human review — still
-  gated by the AI QA + CI above), then **moves the story → `done`**. The human
-  gate moves to feature acceptance (§8). Requires
+  gated by the AI QA + CI above), then **moves the story → `done` in the SAME tick
+  as the merge** (B6 — don't defer the status move to the next reconcile, or the
+  board lags). The human gate moves to feature acceptance (§8). Requires
   `review.auto_merge_to_feature_branch: true`.
 
 **After ANY squash-merge into the feature branch (either mode), run `/merge-verify`
