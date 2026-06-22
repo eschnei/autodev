@@ -88,6 +88,7 @@ The engine is **client-agnostic**; everything per-client lives in the one config
 | `review.granularity` | `per_story` (review each) **or** `per_feature` (auto-merge to branch; review the whole) | `per_story` |
 | `review.delivery` | `draft_pr` (push + GitHub PRs) **or** `local_diff` (no GitHub — local branches + diffs only) | `draft_pr` |
 | `review.quality_review` | leanness/dedup pass over the assembled feature diff at close-out | `true` |
+| `backup.enabled` | WIP durability — push the feature branch to `backup.remote` on creation + after every story merge (not a PR; `draft_pr` only, no-op under `local_diff`) | `true` |
 | `execution.logging` | `quiet` (status only) · `normal` (checkpoint comments) · `verbose` (+ diffs) | `normal` |
 | `execution.incremental_breakdown` | break down the whole feature at Gate 1 **or** per-milestone on demand | `false` |
 | `reporting.cadence` | operator digest: `off` · `hourly` · `<N>m` → log / slack / linear | `off` |

@@ -82,6 +82,17 @@ Governs whether the engine touches GitHub. **This is authoritative; every "push"
   merge to `{{DEFAULT_BRANCH}}` via GitHub (branch protection enforces it). Requires
   bot git identity + branch protection.
 
+### WIP backup — `backup` (toggle) — DURABILITY, not delivery
+Orthogonal to delivery: a backup keeps committed work safe if a run is interrupted;
+it is **never** a PR or a review artifact. When `backup.enabled` (default true) **and**
+delivery is `draft_pr`, the engine pushes the **feature branch** to `backup.remote`
+(default `origin`) **once when it's created** and **after every story merges into
+it** — a continuously-updated remote backup of in-flight work. It only fast-forwards
+the remote feature ref; it never force-pushes, never touches `{{DEFAULT_BRANCH}}`, and
+does **not** open the feature PR (that still happens only at close-out, §8). Under
+`local_diff`, backup is a **logged no-op** — it does not override the no-push rule or
+the pre-push hook (code stays fully local by design).
+
 ## Non-negotiable principles (apply at every stage)
 
 1. **Linear is the only state machine.** Every transition is a Linear **status**
@@ -134,6 +145,10 @@ Governs whether the engine touches GitHub. **This is authoritative; every "push"
 - Branches: feature `{{FEATURE_PREFIX}}<feature-slug>`; story
   `{{STORY_PREFIX}}/sc-<story-id>/<slug>`. Delivery to the feature branch follows
   **Delivery mode**: `draft_pr` → draft PR; `local_diff` → local diff, local merge.
+- **WIP backup (`backup.enabled`, default true):** in `draft_pr`, push the feature
+  branch to `backup.remote` (default `origin`) on creation + after every story merge
+  — `git push <remote> {{FEATURE_PREFIX}}<slug>` (fast-forward; never force, never the
+  default branch, not a PR). No-op under `local_diff`.
 - Merge: story → feature = **{{MERGE_S2F}}**; feature → `{{DEFAULT_BRANCH}}` =
   **{{MERGE_F2M}}** (human-merged).
 - BrainGrid project: **{{BG_PROJECT}}**. Linear workspace: **{{LINEAR_TEAM}}**.

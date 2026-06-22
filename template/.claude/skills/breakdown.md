@@ -69,8 +69,13 @@ Read `.autodev/deployment.json` for: tracker states/labels, BrainGrid project,
    (guideline, not a hard line-count gate).
 
 6. **Create the feature branch** `{{FEATURE_PREFIX}}<feature-slug>` from
-   `{{DEFAULT_BRANCH}}`. Apply `ai-eligible` to each story (this label — set ONLY
-   here — is what makes a story eligible for the devloop; tickets typed directly
+   `{{DEFAULT_BRANCH}}`. **Establish the WIP backup (if `backup.enabled` AND delivery
+   is `draft_pr`):** push the just-created feature branch to `backup.remote` (default
+   `origin`) — `git push <remote> {{FEATURE_PREFIX}}<feature-slug>` — so the branch
+   exists remotely from the start and every later task push has somewhere to land.
+   This is a backup, not a PR — open nothing. Under `local_diff` (or `backup.enabled`
+   false) skip this — push nothing. Apply `ai-eligible` to each story (this label — set
+   ONLY here — is what makes a story eligible for the devloop; tickets typed directly
    into Linear never get it).
 
 7. **Release to dev.** Move each story to `Ready for AI Dev`. The feature is now

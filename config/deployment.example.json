@@ -154,6 +154,14 @@
     "_quality_review_note": "B2 — at feature close-out, a code-reviewer does a leanness pass over the assembled feature diff (dedup, dead code, copy-paste, stale comments); applies behavior-preserving simplifications only, re-runs gates, before the acceptance gate."
   },
 
+  "backup": {
+    "enabled": true,
+    "_enabled_note": "WIP DURABILITY — distinct from review.delivery / PRs. true (default): once the feature branch is created AND after EVERY story merges into it, the engine pushes the feature branch to its remote so an interrupted run never loses committed work. This is a BACKUP, not a PR/review artifact — the feature PR is still opened only at close-out (§8) and humans still gate + merge. It only ADVANCES the remote feature ref (fast-forward; never force, never a default-branch push).",
+    "remote": "origin",
+    "_remote_note": "Which git remote to back up to (default: origin — the same remote draft_pr pushes to). If you change it, mirror the change in .claude/settings.json's allowed push pattern.",
+    "_delivery_note": "ONLY active when review.delivery is 'draft_pr'. Under 'local_diff' (no-push / code stays off any remote by design) backup is a LOGGED NO-OP — it never overrides the no-push rule or the pre-push hook."
+  },
+
   "personas": {
     "_note": "Which agent personas the engine may use (subagent slugs in ~/.claude/agents/), and how it routes work to the best one. Roster + routing are per-client because stacks differ. Specialist QA agents are from the agency-agents library.",
     "roster": [

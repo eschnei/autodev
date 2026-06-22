@@ -189,6 +189,16 @@ Read `review.granularity`:
 gates + live smoke). If it fails, it auto-reverts the merge and reopens the story.
 A green story branch is not proof the *integrated* branch works.
 
+**Then back up the work (B-backup — if `backup.enabled` AND delivery is `draft_pr`):**
+once the merge sticks (merge-verify §1 green, or its auto-revert applied), push the
+feature branch to `backup.remote` (default `origin`) — `git push <remote>
+{{FEATURE_PREFIX}}<slug>`. This fast-forwards the remote feature ref so an interrupted
+run loses no committed work; it is **not** the feature PR (that opens only at §8) — open
+nothing, never force-push, never push `{{DEFAULT_BRANCH}}`. 🗒️ **log:** `💾 backup
+pushed · {{FEATURE_PREFIX}}<slug> → <remote>`. Under `local_diff` (or `backup.enabled`
+false) this is a **no-op** — push nothing (log `💾 backup: skipped (local_diff)` at
+`verbose`).
+
 In **both** modes nothing reaches `{{DEFAULT_BRANCH}}` without a human — branch
 protection still enforces that.
 
