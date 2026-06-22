@@ -104,10 +104,12 @@ PR; `local_diff` → keep the branch local, no push/PR. **Move the story → `ai
   added · gate results (`{{CMD_TEST}}` ✓ · lint ✓ · build ✓).
 
 ## 6 · AI QA — three angles (all always run), live is advisory
-**Executable-env prep (do once per session, before any test layer):** bring up the
-data services with `qa.docker_up`, then **seed the test DB with `qa.seed_test`** if
-not already seeded this session (skip on later ticks — re-seeding can violate unique
-constraints). Run each layer via `qa.test_layers.*` exactly as configured — those
+**Executable-env prep (before any test layer):** bring up the data services with
+`qa.docker_up` (idempotent). Then **seed the test DB with `qa.seed_test` ONLY if the
+persistent marker `.autodev/.test_db_seeded` is absent**; on a successful seed,
+`touch .autodev/.test_db_seeded`. Each heartbeat tick is a fresh session, so a
+per-session check is not enough — re-seeding a populated test DB violates unique
+constraints / accumulates data. (Delete the marker to force a re-seed after a DB reset.) Run each layer via `qa.test_layers.*` exactly as configured — those
 strings already encode the required exclusions/concurrency (e.g. `--exclude=buggy
 --max-cases`); do **not** substitute a bare `mix test`, or known-baseline/contention
 failures will produce false reds. A layer with a documented `qa._known_baseline`
