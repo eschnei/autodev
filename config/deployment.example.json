@@ -131,6 +131,11 @@
         "POSTGRID_API_KEY": ""
       },
       "forbid_endpoints": ["*.found.io", "*.es.io", "*cloud.es.io", "api.twilio.com", "*.twilio.com", "api.mailgun.net", "*.mailgun.org", "*.postgrid.com"]
+    },
+    "acceptance": {
+      "_note": "B1 — whole-feature acceptance QA (merge-verify §2), run on the assembled branch before the human gate. Catches cross-suite flakiness the per-story gates miss + verifies the system as a whole.",
+      "integrated_suites": ["meteor npm test", "meteor npm run test:e2e"],
+      "live_system": true
     }
   },
 
@@ -138,7 +143,9 @@
     "granularity": "per_story",
     "_granularity_note": "per_story = human reviews each story (calibration). per_feature = stories auto-merge to the feature branch on AI-QA pass; the human acceptance-tests the WHOLE feature and signs off → main (the PM/dev-team model). Start per_story for the first feature, then flip to per_feature.",
     "auto_merge_to_feature_branch": false,
-    "_auto_merge_note": "true once granularity is per_feature — stories merge to the feature branch without per-story human review (still gated by AI QA + CI; human gate moves to feature acceptance)."
+    "_auto_merge_note": "true once granularity is per_feature — stories merge to the feature branch without per-story human review (still gated by AI QA + CI; human gate moves to feature acceptance).",
+    "quality_review": true,
+    "_quality_review_note": "B2 — at feature close-out, a code-reviewer does a leanness pass over the assembled feature diff (dedup, dead code, copy-paste, stale comments); applies behavior-preserving simplifications only, re-runs gates, before the acceptance gate."
   },
 
   "personas": {

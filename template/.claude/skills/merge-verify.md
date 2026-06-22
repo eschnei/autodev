@@ -39,14 +39,26 @@ the human merge to `{{DEFAULT_BRANCH}}`.
   `ai_development` with the failure as a comment (localize via the `[sc-<id>]`
   trailer), and re-enter the dev↔QA loop. **Never leave a broken shared branch.**
 
-## 2 · Feature acceptance report (before the human gate)
-When the feature is assembled and §1 is green, generate a **human-readable report**
-(post on the feature issue / Project):
-- stories shipped + their QA verdicts; full gate results on the *integrated* branch;
-- live-smoke screenshots; CI status; anything QA flagged but didn't block;
-- the manual test script for the reviewer.
-Then move to the acceptance gate (issue mode: `ready_for_human_acceptance`; project
-mode: `acceptance` project-status). **Stop — human decision.**
+## 2 · Feature acceptance QA + report (before the human gate)  ⟵ B1
+When the feature is assembled and §1 is green, run a **whole-feature acceptance
+pass** — this is the integrated check the per-story gates can't give you (it catches
+cross-suite flakiness + verifies the system *as a whole*). Hermetic, on the
+assembled branch:
+- **Integrated suites** — run `qa.acceptance.integrated_suites` (the full
+  cross-suite run on the whole branch, e.g. all backend + UI + e2e together), not
+  just the per-story layers. Judge against `qa._known_baseline`.
+- **Live system smoke** — if `qa.acceptance.live_system`, start the assembled app
+  (`{{CMD_APP_RUN}}` → `{{APP_URL}}`) and drive an **end-to-end path across the
+  whole feature** (multiple stories together, not one in isolation) via
+  evidence-collector / Playwright; attach screenshots.
+- A real failure here → localize to a story (`[sc-<id>]` trail), back to
+  `ai_development`, re-QA — same as §1. Don't present a feature that fails integrated.
+
+Then generate a **human-readable acceptance report** (post on the feature issue /
+Project): stories shipped + QA verdicts · the **integrated-suite** result · the
+**live-system** screenshots · CI status · anything flagged-not-blocked · the manual
+test script. Move to the acceptance gate (issue: `ready_for_human_acceptance`;
+project: `acceptance` status). **Stop — human decision.**
 
 ## 3 · Ship to `{{DEFAULT_BRANCH}}` + sign-off (humans only) — per Delivery mode
 - **`draft_pr`:** only a **human** merges the feature PR to `{{DEFAULT_BRANCH}}` —

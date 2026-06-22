@@ -186,8 +186,16 @@ protection still enforces that.
 
 ## 8 · Feature close-out
 When all of the epic's stories are merged into the feature branch and it's green:
-- **Run `/merge-verify` §2** — clean-room check on the assembled feature, then
-  generate the **acceptance report** and move to the acceptance gate.
+- **Leanness / quality review (B2 — if `review.quality_review`):** spawn a fresh
+  **code-reviewer** over the **assembled feature diff** (`git diff
+  {{DEFAULT_BRANCH}}...{{FEATURE_PREFIX}}<slug>`) for **bloat**, not correctness —
+  duplicated logic, copy-paste components, dead code, stale comments. Apply only
+  **behavior-preserving** simplifications, commit (`[quality]`), then re-run the
+  gates (must stay green) before acceptance. Runs *before* §2 so the human accepts
+  the lean version.
+- **Run `/merge-verify` §2** — whole-feature acceptance QA (integrated suites + live
+  system smoke) on the assembled feature, then generate the **acceptance report**
+  and move to the acceptance gate.
 - **`per_story`:** stories are already individually approved → deliver the assembled
   feature per **Delivery mode**: `draft_pr` → open the feature PR → `{{DEFAULT_BRANCH}}`
   for the human to merge; `local_diff` → present the local feature-branch diff
