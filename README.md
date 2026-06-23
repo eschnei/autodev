@@ -47,6 +47,8 @@ autoDev/
 ```bash
 cp config/deployment.example.json config/<client>.json   # fill: repo, branch, Linear, commands…
 ./install.sh config/<client>.json                        # renders the engine + auto-creates the board
+# (if client_name is still unset/placeholder, install prompts for it and saves it back;
+#  set AUTODEV_NONINTERACTIVE=1 to skip the prompt in CI/managed installs)
 scripts/autodev/doctor.sh                                 # preflight — fix any ✗ before running
 # then: wire BrainGrid (optional — see below) · connect Linear MCP · bot identity + branch protection
 ```

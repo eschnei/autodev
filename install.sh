@@ -26,6 +26,30 @@ command -v jq >/dev/null || { echo "error: jq is required (brew install jq)" >&2
 get() { jq -r "$1" "$CONFIG"; }
 
 CLIENT=$(get '.client_name')
+# Name prompt — fire ONLY if client_name is unset/placeholder, and only when we
+# have a terminal. The normal render path stays non-interactive + re-runnable;
+# set AUTODEV_NONINTERACTIVE=1 (or pipe with no TTY) to force-skip in CI/managed
+# installs. The answer is written back to the config so deployment.json + any
+# re-render stay consistent.
+case "$CLIENT" in
+  ""|null|AcmeCo)
+    if [[ -t 0 && -t 1 && -z "${AUTODEV_NONINTERACTIVE:-}" ]]; then
+      printf 'client_name is unset in %s — what should this deployment be named? > ' "$CONFIG" >&2
+      read -r NAME_INPUT
+      # trim leading/trailing whitespace
+      NAME_INPUT="${NAME_INPUT#"${NAME_INPUT%%[![:space:]]*}"}"
+      NAME_INPUT="${NAME_INPUT%"${NAME_INPUT##*[![:space:]]}"}"
+      [[ -n "$NAME_INPUT" ]] || { echo "error: a name is required" >&2; exit 1; }
+      CLIENT="$NAME_INPUT"
+      TMPCFG=$(mktemp)
+      jq --arg n "$CLIENT" '.client_name = $n' "$CONFIG" > "$TMPCFG" && mv "$TMPCFG" "$CONFIG"
+      echo "  ✓ saved client_name=\"$CLIENT\" to $CONFIG" >&2
+    else
+      echo "error: .client_name is unset/placeholder in $CONFIG and there's no terminal to prompt (non-interactive). Set it and re-run." >&2
+      exit 1
+    fi
+    ;;
+esac
 REPO=$(get '.repo.local_path')
 DEFAULT_BRANCH=$(get '.repo.default_branch')
 FEATURE_PREFIX=$(get '.repo.feature_branch_prefix')
