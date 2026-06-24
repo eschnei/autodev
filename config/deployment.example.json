@@ -92,7 +92,7 @@
     "max_dev_qa_loops": 3,
     "self_review_rounds": 1,
     "logging": "normal",
-    "_logging_note": "How much the dev/QA steps narrate into Linear COMMENTS (status = where; comments = what). normal (default) = emoji checkpoint comments at dev start/done, each QA verdict, each dev↔QA round, gates/Blocked. quiet = status moves only. verbose = also attach diffs/sub-steps for debugging.",
+    "_logging_note": "DETAIL of the Linear narration, NOT whether actions are logged. Every action ALWAYS leaves a Linear trail (principle 9) in every mode — status = where, comments = what + why. quiet = one terse line per material action (move+reason, commit, push/backup, merge, revert, each QA verdict, gate, Block, reconcile, error) — drops only sub-step chatter. normal (default) = emoji checkpoint comments at dev start/done, each QA verdict, each dev↔QA round, gates/Blocked. verbose = also attach diffs/sub-steps for debugging.",
     "incremental_breakdown": false,
     "_incremental_breakdown_note": "B6 — false (default): /breakdown decomposes the WHOLE feature at Gate 1. true: decompose one MILESTONE/epic at a time, on demand, so the queue stays fed without a huge upfront pass (good for big features)."
   },

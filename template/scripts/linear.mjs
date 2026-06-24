@@ -10,7 +10,7 @@
 //   node linear.mjs whoami
 //   node linear.mjs doctor                       # validate token + team + every config status id (live)
 //   node linear.mjs state-id <stageKey>          # e.g. ai_qa -> the live state UUID
-//   node linear.mjs move <ISSUE> <stageKey>      # ISSUE = identifier (ADX-4) or UUID
+//   node linear.mjs move <ISSUE> <stageKey> [--note "why"]   # ISSUE = identifier (ADX-4) or UUID; --note posts a logged reason with the move
 //   node linear.mjs comment <ISSUE> "<markdown>"
 //   node linear.mjs show <ISSUE>                 # title/state/assignee/labels/url/description
 //   node linear.mjs list-comments <ISSUE>
@@ -133,6 +133,14 @@ const cmds = {
       { id, i: { stateId: stateId(cfg, a[1]) } });
     if (!d.issueUpdate.success) die('move failed');
     console.log(`${d.issueUpdate.issue.identifier} -> ${d.issueUpdate.issue.state.name}`);
+    // --note posts the reason for the move as a comment in the same call, so the
+    // board never shows a status change without a logged "why" (no silent moves).
+    const note = flags(a.slice(2)).note;
+    if (note) {
+      const c = await gql(token, 'mutation($i:CommentCreateInput!){commentCreate(input:$i){success}}', { i: { issueId: id, body: note } });
+      if (!c.commentCreate.success) die('move succeeded but --note comment failed');
+      console.log('note posted');
+    }
   },
   async comment(token, cfg, a) {
     const id = await issueId(token, a[0]);

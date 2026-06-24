@@ -82,6 +82,9 @@ Read `.autodev/deployment.json` for: tracker states/labels, BrainGrid project,
    "in flight" — the devloop's **one-feature lock** allows only one feature's
    epics to run at a time; if another feature is already in flight, this one waits
    its turn by priority (its stories sit in `Ready for AI Dev`).
+   🗒️ **Log on the feature** (the git actions aren't visible on the board otherwise):
+   `🌱 breakdown done — feature branch <name> created · <N> stories across <M>
+   epics released to AI Dev` (+ `· backup pushed → <remote>` if it ran in step 6).
 
 > **Incremental breakdown (B6 — if `execution.incremental_breakdown`):** for a big
 > feature, don't decompose everything at Gate 1. Break down **one milestone/epic at

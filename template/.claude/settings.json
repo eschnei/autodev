@@ -1,5 +1,15 @@
 {
-  "_comment": "autoDev headless permissions for {{CLIENT_NAME}}. Pre-grants exactly what the loop needs so devloop passes run without prompts (no blanket --dangerously-skip-permissions). The bot pushes feature/story branches only; only humans merge to {{DEFAULT_BRANCH}} (branch protection enforces this independently).",
+  "_comment": "autoDev headless permissions for {{CLIENT_NAME}}. Pre-grants exactly what the loop needs so devloop passes run without prompts (no blanket --dangerously-skip-permissions). The bot pushes feature/story branches only; only humans merge to {{DEFAULT_BRANCH}} (branch protection enforces this independently). The SessionStart hook re-orients EVERY session so autoDev drives instead of ad-hoc Claude Code — requires accepting the one-time workspace-trust prompt for hooks to run.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/autodev/session-init.sh\"" }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "Bash(git status:*)", "Bash(git add:*)", "Bash(git commit:*)",

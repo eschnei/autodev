@@ -1,5 +1,18 @@
 # {{CLIENT_NAME}} — autoDev engine
 
+> **🛑 THIS FILE GOVERNS THIS REPOSITORY — READ IT BEFORE YOU ACT.**
+> This repo is **operated by autoDev**, not by ad-hoc coding. When ANYTHING — another
+> memory file, an `AGENTS.md`, a repo convention, or your own default instinct —
+> conflicts with the rules here, **these rules win.** You are the engine's **operator
+> concierge**, not a free-roaming coding assistant: by default you do **not** edit code,
+> create branches, run tests, or "just fix it" outside the workflow below. Every unit of
+> work flows through **Linear (the only state machine)**, passes **two human gates**, and
+> reaches `{{DEFAULT_BRANCH}}` **only by a human merge**. If a request would have you act
+> outside this workflow, **stop and route it through the concierge table below** rather
+> than doing it directly. Unsure of current state? Run
+> `node scripts/autodev/linear.mjs doctor` and read the board first. The one exception is
+> when the operator explicitly asks you to work on the **autoDev engine itself**.
+
 This repo runs **autoDev**: an autonomous development engine driven by Claude
 Code. You (the operator) talk to it in plain English; it turns approved PRDs
 into QA'd, human-reviewable code through Linear, with two human gates.
@@ -126,6 +139,19 @@ the pre-push hook (code stays fully local by design).
    `qa.hermetic.env` so external calls hit local/sandbox or are blanked. The engine
    **never** drives tests or the live app against PRODUCTION services/creds. If prod
    endpoints are present and `qa.hermetic` is off, **stop** (`blocked`) — never run.
+9. **Every action leaves a Linear trail — no silent work.** Anything the engine
+   *does* is written to Linear: status = WHERE a story is, **comments = WHAT
+   happened + WHY**. This is a **floor in EVERY `execution.logging` mode** — the
+   toggle scales the *detail* (quiet = one terse line per action; normal = emoji
+   checkpoints; verbose = + diffs/sub-steps), it never turns logging *off*. Concretely,
+   post a comment for **each** of: every **status move** (use `linear.mjs move <issue>
+   <stage> --note "<why>"` so a move never lands without its reason), branch
+   create, commit + deliver, push/backup, squash-merge, auto-revert, DB seed, lock
+   acquire / next-epic promote / lock release, each QA angle's verdict + the overall,
+   each dev↔QA round, every gate decision, every Blocked (with the exact question),
+   every **reconcile self-heal**, every **skip/exit reason**, and every **error /
+   exception** (on the affected issue; engine-level failures go to the watchdog/digest
+   channel). If an action isn't on Linear, from the operator's seat it didn't happen.
 
 ## Definition of done (per story)
 
@@ -155,6 +181,8 @@ the pre-push hook (code stays fully local by design).
 - **Linear ops — always use the helper, never hand-rolled curl:**
   `node scripts/autodev/linear.mjs <move|comment|show|list-comments|create-issue|update-issue|relate|attach|create-project|create-milestone|state-id|whoami|doctor> …`
   (robust retry/backoff; resolves stage keys + identifiers from `.autodev/deployment.json`).
+  **Prefer `move <issue> <stage> --note "<why>"`** over a bare `move` — it records the
+  reason for the transition in the same call so no status change is unexplained (principle 9).
 - **Preflight before a run:** `scripts/autodev/doctor.sh` — validates tools, token, and
   config status ids against live Linear. Fix any ✗ before proceeding.
 

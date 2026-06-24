@@ -31,13 +31,16 @@ the human merge to `{{DEFAULT_BRANCH}}`.
 - **CI parity** — `draft_pr`: confirm CI green on the merge commit. `local_diff`:
   there is no remote CI — the local gates above ARE the parity check.
 
-**Outcomes:**
-- All green → record a short integration note; continue.
+**Outcomes (log both — every action leaves a Linear trail, principle 9):**
+- All green → 🗒️ comment `🧪 clean-room ✓ — fresh install + full gates + live smoke
+  green on <feature branch>@<sha>` on the story/feature; continue.
 - **Any failure** = an integration regression the isolated branch hid → **auto-revert
   that merge** (`git revert` the squash commit on the feature branch; `draft_pr` pushes
-  the revert, `local_diff` keeps it local), move the offending story back to
-  `ai_development` with the failure as a comment (localize via the `[sc-<id>]`
-  trailer), and re-enter the dev↔QA loop. **Never leave a broken shared branch.**
+  the revert — 🗒️ log `↩️ reverted [sc-<id>] from <feature branch>` — `local_diff` keeps
+  it local), then **`move <issue> ai_development --note "🧪 clean-room FAIL — <the
+  integration regression>; reverted [sc-<id>], back to dev"`** (localize via the
+  `[sc-<id>]` trailer), and re-enter the dev↔QA loop. **Never leave a broken shared
+  branch — and never revert without logging it.**
 
 ## 2 · Feature acceptance QA + report (before the human gate)  ⟵ B1
 When the feature is assembled and §1 is green, run a **whole-feature acceptance
@@ -57,15 +60,18 @@ assembled branch:
 Then generate a **human-readable acceptance report** (post on the feature issue /
 Project): stories shipped + QA verdicts · the **integrated-suite** result · the
 **live-system** screenshots · CI status · anything flagged-not-blocked · the manual
-test script. Move to the acceptance gate (issue: `ready_for_human_acceptance`;
-project: `acceptance` status). **Stop — human decision.**
+test script. Then **`move <feature> ready_for_human_acceptance --note "🚦 Feature
+acceptance — integrated suites ✓ · live smoke ✓ · report posted; awaiting human
+sign-off"`** (project mode: the equivalent `acceptance` project-status move).
+**Stop — human decision.**
 
 ## 3 · Ship to `{{DEFAULT_BRANCH}}` + sign-off (humans only) — per Delivery mode
 - **`draft_pr`:** only a **human** merges the feature PR to `{{DEFAULT_BRANCH}}` —
   branch protection enforces this; the bot never can. After it deploys, run a
   **post-deploy smoke** against the REAL environment (the deployed URL, not
   localhost), regenerate the report; **final prod sign-off is the human's**. If the
-  post-deploy smoke fails, raise it immediately (`blocked`) with the evidence.
+  post-deploy smoke fails, raise it immediately — **`move <feature> blocked --note "🛑
+  post-deploy smoke FAILED on <real env> — <evidence>"`**.
 - **`local_diff`:** nothing is pushed/deployed. The engine presents the assembled
   **local** feature-branch diff + the acceptance report; a human reviews and (if they
   choose) merges locally. There is no remote prod step — sign-off is on the local run.

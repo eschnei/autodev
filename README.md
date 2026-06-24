@@ -50,6 +50,8 @@ cp config/deployment.example.json config/<client>.json   # fill: repo, branch, L
 # (if client_name is still unset/placeholder, install prompts for it and saves it back;
 #  set AUTODEV_NONINTERACTIVE=1 to skip the prompt in CI/managed installs)
 scripts/autodev/doctor.sh                                 # preflight — fix any ✗ before running
+# IMPORTANT: open Claude Code in the repo and ACCEPT the workspace-trust prompt — that
+#   activates the SessionStart hook that makes autoDev (not ad-hoc Claude Code) drive.
 # then: wire BrainGrid (optional — see below) · connect Linear MCP · bot identity + branch protection
 ```
 
@@ -57,6 +59,11 @@ The engine is **client-agnostic**; everything per-client lives in the one config
 
 ## The non-negotiables
 
+- **autoDev drives, not ad-hoc Claude Code** — the rulebook (`.claude/CLAUDE.md`) opens
+  by declaring itself *authoritative* (it governs over any other memory/instinct), and a
+  **`SessionStart` hook re-orients every session** (deterministic, harness-executed — not
+  model discretion) so the engine stays in charge even on a fresh repo. One-time: accept
+  the workspace-trust prompt so the hook runs.
 - **The board is the only state machine** — every transition is a live status move
   (`linear.mjs move …`); cards flow through every column so non-technical operators
   watch work progress in real time. A per-tick reconcile self-heals dropped moves.

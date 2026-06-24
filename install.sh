@@ -195,7 +195,14 @@ cat <<EOF
 
 ✅ autoDev engine installed into: $REPO
    .claude/CLAUDE.md, .claude/skills/{intake,prd,breakdown,devloop}.md,
-   .claude/settings.json, scripts/autodev/*.sh, .autodev/{deployment.json,ops/}
+   .claude/settings.json (+ SessionStart hook), scripts/autodev/*.sh
+   (incl. session-init.sh), .autodev/{deployment.json,ops/}
+
+⚠️  MAKES AUTODEV DRIVE (do this first): open Claude Code in $REPO and ACCEPT the
+   workspace-trust prompt. That activates the SessionStart hook in .claude/settings.json,
+   which re-orients every session so the engine drives instead of ad-hoc Claude Code.
+   Without trust, the hook won't run and Claude may "fight" the workflow. Verify the
+   hook prints JSON: bash "$REPO/scripts/autodev/session-init.sh"
 
 Now the auth-bound manual steps (these can't be automated for you):
 
