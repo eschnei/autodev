@@ -135,6 +135,17 @@ chmod +x "$REPO/scripts/autodev/"*.sh "$REPO/scripts/autodev/"*.mjs 2>/dev/null 
 mkdir -p "$REPO/.autodev/ops"
 cp -R "$TMP/ops/." "$REPO/.autodev/ops/"
 cp "$CONFIG" "$REPO/.autodev/deployment.json"
+
+# Auto-detect house conventions (generated types · design system · data layer · tests)
+# so the dev agent adopts them instead of hand-rolling types / hardcoding styles.
+# CLAUDE.md imports this file; re-generated on every install.
+if bash "$REPO/scripts/autodev/detect-conventions.sh" "$REPO" > "$REPO/.autodev/conventions.md" 2>/dev/null; then
+  echo "✓ wrote .autodev/conventions.md (auto-detected project conventions)"
+else
+  echo "# Project conventions — auto-detect unavailable; declare them in CLAUDE.md." > "$REPO/.autodev/conventions.md"
+  echo "ℹ︎ convention auto-detect skipped (wrote a stub .autodev/conventions.md)"
+fi
+
 rm -rf "$TMP"
 
 # ---- create the standard Linear board (canonical columns; idempotent) -------
@@ -196,7 +207,8 @@ cat <<EOF
 ✅ autoDev engine installed into: $REPO
    .claude/CLAUDE.md, .claude/skills/{intake,prd,breakdown,devloop}.md,
    .claude/settings.json (+ SessionStart hook), scripts/autodev/*.sh
-   (incl. session-init.sh), .autodev/{deployment.json,ops/}
+   (incl. session-init.sh, detect-conventions.sh),
+   .autodev/{deployment.json,conventions.md,ops/}
 
 ⚠️  MAKES AUTODEV DRIVE (do this first): open Claude Code in $REPO and ACCEPT the
    workspace-trust prompt. That activates the SessionStart hook in .claude/settings.json,

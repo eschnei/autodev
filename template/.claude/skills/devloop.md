@@ -96,8 +96,22 @@ None eligible anywhere → exit (Blocked stories are visible on Linear).
 - Spawn the story's **`agent:` persona** (from breakdown / `dev_routing`) as the
   dev subagent, in its **own git worktree** on a story branch
   `{{STORY_PREFIX}}/sc-<id>/<slug>` cut from feature-branch HEAD. Fresh context;
-  it reads the PRD, the BrainGrid task/plan, `AGENTS.md`/`CLAUDE.md`, and its
-  story only.
+  it reads the PRD, the BrainGrid task/plan, `AGENTS.md`/`CLAUDE.md`,
+  **`.autodev/conventions.md` (the auto-detected house conventions)**, and its story.
+- **Survey conventions BEFORE writing (do not reinvent what the repo already has).**
+  A fresh-context agent that skips this hand-rolls types and hardcodes styles — the #1
+  autoDev defect. The persona must, against the LIVE code:
+  - **Types:** if the project generates types (GraphQL/REST/DB codegen — `codegen.*`,
+    `*.generated.ts`, `__generated__/`, `@prisma/client`), **import the generated types
+    and run codegen for new operations. Never hand-write schema-shaped types per
+    component**, and never bridge a mismatch with `as unknown` — fix the source instead.
+  - **Styling:** find the design system / theme (MUI theme, Tailwind config, tokens) and
+    **use its tokens** (`sx`/`styled`/`theme.*`, utility classes). **Never hardcode**
+    colors / spacing / typography; extend the theme if a token is missing.
+  - **Reuse:** grep for an existing component/hook/util that already does the job before
+    writing a new one.
+  If the convention is genuinely ambiguous (two competing patterns, none canonical), that
+  is a requirements gap → §4 (ask / Blocked), not a coin-flip.
 - **Each diff must include tests** covering the acceptance criteria
   (`{{CMD_TEST}}`). A diff without tests fails self-check.
 
@@ -146,10 +160,15 @@ Spawn **fresh, independent** reviewer contexts from `personas.qa_angles` — nev
 the dev agent. Each run re-derives its verdict from artifacts and is asked "did
 we hallucinate this?":
 - **Conformance** (`code-reviewer`, `test-results-analyzer`, `evidence-collector`):
-  suite passes; diff meets each criterion; **evidence-collector** exercises it
-  live against the running app (`{{CMD_APP_RUN}}` → `{{APP_URL}}`; the configured
-  e2e framework (`qa.e2e_framework`) in `{{E2E_DIR}}` for UI, `api-tester` for
-  non-UI) and attaches **screenshots**.
+  suite passes; diff meets each criterion; **the diff follows house conventions**
+  (CLAUDE.md ▸ Coding standards + `.autodev/conventions.md`) — `code-reviewer` flags
+  **hand-written types that should be the generated ones** (and any `as unknown` cast
+  bridging a type mismatch), **hardcoded styles where a theme token exists**, and
+  **reinvented logic an existing util/component already covers**. A house-convention
+  violation is a real defect → back to dev (§6 Outcomes). **evidence-collector**
+  exercises it live against the running app (`{{CMD_APP_RUN}}` → `{{APP_URL}}`; the
+  configured e2e framework (`qa.e2e_framework`) in `{{E2E_DIR}}` for UI, `api-tester`
+  for non-UI) and attaches **screenshots**.
   **Visual diff (C2):** if the story has wireframes attached (C1), compare the built
   screen against them and flag visual mismatches (advisory like the live check — a
   mismatch flags for the human, doesn't hard-block).
@@ -228,10 +247,14 @@ When all of the epic's stories are merged into the feature branch and it's green
 - **Leanness / quality review (B2 — if `review.quality_review`):** spawn a fresh
   **code-reviewer** over the **assembled feature diff** (`git diff
   {{DEFAULT_BRANCH}}...{{FEATURE_PREFIX}}<slug>`) for **bloat**, not correctness —
-  duplicated logic, copy-paste components, dead code, stale comments. Apply only
-  **behavior-preserving** simplifications, commit (`[quality]`), then re-run the
-  gates (must stay green) before acceptance. Runs *before* §2 so the human accepts
-  the lean version.
+  duplicated logic, copy-paste components, dead code, stale comments, **plus
+  convention bloat: hand-written types that duplicate generated ones (replace with the
+  codegen types, drop the `as unknown` casts), hardcoded styles that duplicate theme
+  tokens (swap to the token), and reinvented utils/components (reuse the existing one).**
+  Apply only **behavior-preserving** simplifications, commit (`[quality]`), then re-run
+  the gates (must stay green) before acceptance. Runs *before* §2 so the human accepts
+  the lean version. (This is the safety net — the goal is for §3's survey to prevent the
+  bloat in the first place.)
 - **Run `/merge-verify` §2** — whole-feature acceptance QA (integrated suites + live
   system smoke) on the assembled feature, then generate the **acceptance report**
   and move to the acceptance gate.

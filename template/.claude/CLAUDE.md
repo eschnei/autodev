@@ -158,6 +158,10 @@ the pre-push hook (code stays fully local by design).
 - Acceptance criteria met (the contract).
 - Diff includes tests covering those criteria; the suite passes.
 - Diff is small and single-purpose where practical.
+- **Follows house conventions** (Coding standards above + `.autodev/conventions.md`):
+  uses the project's generated types (no hand-written schema types, no `as unknown`
+  casts to bridge them) and its design system/theme (no hardcoded styles where tokens
+  exist); reuses existing components/utils instead of duplicating them.
 - Gates green per **Delivery mode**: `draft_pr` → CI green on the draft PR;
   `local_diff` → the local gates (tests · lint · build) green (no remote CI).
 - Dev agent self-reviewed the diff against the criteria (×{{SELF_REVIEW}}).
@@ -188,7 +192,30 @@ the pre-push hook (code stays fully local by design).
 
 ## Coding standards
 
-> Fill in per project: language/style conventions, frameworks, testing patterns,
-> file layout, anything the dev agent must follow. autoDev injects its workflow
-> above; the project-specific rules go here. (For {{CLIENT_NAME}}: see also any
-> existing AGENTS.md / docs in the repo.)
+**House conventions are BINDING — adopt the project's existing systems, never
+reinvent them.** The most common autoDev defect is a capable agent that hand-rolls
+types and hardcodes styles because it didn't use what the repo already has. Two
+sources, in order:
+
+**1. Auto-detected conventions (generated at install, re-run each install) — BINDING:**
+
+@../.autodev/conventions.md
+
+The dev agent treats those as law (use the generated types, use the design
+system/theme, reuse existing code); the §3 "survey conventions" step verifies them
+against the live code before writing.
+
+**2. Your refinements (these win on conflict)** — fill in per project:
+- **Types — source of truth:** where types come from (GraphQL/REST/DB codegen, etc.).
+  **Import the generated types; never hand-write schema-shaped types per component** —
+  that is exactly what forces `as unknown` casts and duplicated types. Add an operation
+  → run codegen, then import what it produces.
+- **Styling / design system:** the theme/token system (MUI theme, Tailwind config,
+  design tokens…). **Use tokens through the system; never hardcode colors / spacing /
+  typography.** Missing a token → extend the system, don't inline a literal.
+- **Data layer / state:** the client + patterns (Apollo / TanStack Query / store…).
+- **Testing:** framework, where tests live, the patterns to mirror.
+- **File layout & naming, and reuse:** where things go; search for an existing
+  component/hook/util before adding a new one.
+- Anything else the dev agent must follow (see also any existing AGENTS.md / docs in
+  the repo).

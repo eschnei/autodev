@@ -32,6 +32,8 @@ autoDev/
 │   │       ├── merge-verify.md      # acceptance QA + post-merge clean-room + report + prod sign-off
 │   │       └── _story-template.md   # the story contract
 │   ├── scripts/
+│   │   ├── session-init.sh          # SessionStart hook — re-orients every session so autoDev (not ad-hoc CC) drives
+│   │   ├── detect-conventions.sh    # scans the target repo → .autodev/conventions.md (use generated types · the theme · reuse)
 │   │   ├── linear.mjs               # the Linear helper (move/comment/show/update/relate/attach/create-… )
 │   │   ├── report.mjs               # periodic operator digest (reporting.cadence)
 │   │   ├── doctor.sh                # preflight: tools · toolchain · token · config ids · hermetic safety
