@@ -1,39 +1,41 @@
 #!/usr/bin/env bash
 #
-# autoDev — SessionStart hook. Re-orients EVERY session so the engine drives, not
-# ad-hoc Claude Code. Claude Code runs this on session start/resume/clear/compact
-# and injects the `additionalContext` we emit into the model's context window —
-# deterministic, not left to the model noticing a file. This is the antidote to
-# "I have to keep reminding it that autoDev is the bible."
+# autoDev — SessionStart hook. Loads the engine manual EVERY session so autoDev drives,
+# without colonising the team's CLAUDE.md. The manual lives at .claude/autodev.md (NOT
+# .claude/CLAUDE.md), so it does not auto-load as memory — this hook injects it (plus the
+# auto-detected conventions) into context, and points the agent at the team's own
+# AGENTS.md / CLAUDE.md as the read-only authority on coding conventions.
 #
 # Output contract: print JSON on stdout, exit 0. Claude Code reads
 # hookSpecificOutput.additionalContext and adds it to context.
-set -euo pipefail
+# (jq is an autoDev hard dependency — used to JSON-encode safely.)
+set -uo pipefail
 
-read -r -d '' CTX <<'EOF' || true
-⚙️ This repository is driven by **autoDev** (deployment: {{CLIENT_NAME}}). You are its
-operator concierge — the engine drives, you do NOT freelance the workflow.
+DIR="${CLAUDE_PROJECT_DIR:-.}"
+MANUAL="$DIR/.claude/autodev.md"
+CONV="$DIR/.autodev/conventions.md"
 
-`.claude/CLAUDE.md` is the AUTHORITATIVE operating manual. Read it and follow it exactly.
-When ANYTHING (other memory files, AGENTS.md, repo habits, your own instinct) conflicts
-with it, **CLAUDE.md governs**.
+read -r -d '' HEADER <<'EOF' || true
+⚙️ This repository is operated by **autoDev** (deployment: {{CLIENT_NAME}}). Two scopes,
+and they do not overlap:
+- **WORKFLOW / PROCESS → governed by the autoDev manual below** (`.claude/autodev.md`).
+  You are the operator concierge — route every unit of work through Linear + the two human
+  gates; only humans merge the default branch; don't freelance or "just fix it".
+- **HOW CODE IS WRITTEN → governed by the team's own `AGENTS.md` / `CLAUDE.md`** if the repo
+  has them. **Read and OBEY them; on conventions their files win — and NEVER edit, overwrite,
+  or "update" them.** Propose any convention change in a separate PR with rationale.
 
-Non-negotiables (full detail in CLAUDE.md):
-- **Linear is the ONLY state machine** — every step is a status move via
-  `node scripts/autodev/linear.mjs move <issue> <stage> --note "<why>"`.
-- **Two human gates** (PRD approval, story/feature review); **only humans merge to the
-  default branch** (branch protection, not trust).
-- **Ask, don't invent** — if a ticket/brief is vague, ask (front half) or move the story
-  to Blocked with the specific question (back half). Never guess and ship.
-- **Every action leaves a Linear trail** (principle 9) — no silent work.
-- Route the operator's plain-English intent through the CLAUDE.md **concierge table**.
-  Power-user shortcuts: /intake /prd /breakdown /devloop.
-
-If you are unsure of the current state, run `node scripts/autodev/linear.mjs doctor`
-and read the board before acting.
+Unsure of state? `node scripts/autodev/linear.mjs doctor`, then read the board. The full
+manual and the auto-detected conventions follow; also read any AGENTS.md / CLAUDE.md present.
 EOF
 
-# jq is an autoDev hard dependency (install.sh + doctor.sh require it). Use it to
-# JSON-encode the context safely (handles newlines/quotes/unicode).
+CTX="$HEADER"$'\n\n'"===== BEGIN .claude/autodev.md — operating manual (authoritative for WORKFLOW) ====="$'\n'
+if [ -f "$MANUAL" ]; then CTX="$CTX$(cat "$MANUAL")"$'\n'; else CTX="$CTX(manual not found at $MANUAL)"$'\n'; fi
+CTX="$CTX===== END manual ====="$'\n'
+
+if [ -f "$CONV" ]; then
+  CTX="$CTX"$'\n'"===== BEGIN .autodev/conventions.md — auto-detected, BINDING where the team's files are silent ====="$'\n'"$(cat "$CONV")"$'\n'"===== END conventions ====="$'\n'
+fi
+
 jq -n --arg c "$CTX" \
   '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $c}}'

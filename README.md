@@ -21,8 +21,8 @@ autoDev/
 ├── BACKLOG.md                       # roadmap + run-gap audit (what's shipped / planned)
 ├── template/
 │   ├── .claude/
-│   │   ├── CLAUDE.md                 # concierge + rulebook + all the toggles
-│   │   ├── settings.json            # allowlisted permissions (bot can't merge to main)
+│   │   ├── autodev.md               # engine manual (concierge + rulebook + toggles) — NOT your CLAUDE.md; loaded via the SessionStart hook
+│   │   ├── settings.json            # allowlisted permissions + SessionStart hook (bot can't merge to main; can't edit your AGENTS.md/CLAUDE.md)
 │   │   ├── commands/devloop.md      # the /devloop SLASH command (heartbeat entry)
 │   │   └── skills/
 │   │       ├── intake.md            # plain-English front door · feature-vs-bug gate · cli|linear · attaches wireframes
@@ -61,11 +61,13 @@ The engine is **client-agnostic**; everything per-client lives in the one config
 
 ## The non-negotiables
 
-- **autoDev drives, not ad-hoc Claude Code** — the rulebook (`.claude/CLAUDE.md`) opens
-  by declaring itself *authoritative* (it governs over any other memory/instinct), and a
-  **`SessionStart` hook re-orients every session** (deterministic, harness-executed — not
-  model discretion) so the engine stays in charge even on a fresh repo. One-time: accept
-  the workspace-trust prompt so the hook runs.
+- **autoDev drives, not ad-hoc Claude Code — but it stays in its own files.** The engine
+  manual lives at **`.claude/autodev.md`** (never your `CLAUDE.md`), is **authoritative for
+  the WORKFLOW**, and is injected every session by a **`SessionStart` hook** (deterministic,
+  harness-executed). **Your `AGENTS.md` / `CLAUDE.md` stay the authority on coding
+  conventions** — autoDev reads and obeys them and is **denied from editing them**; a
+  convention change comes as a separate PR with rationale, never a silent in-place edit.
+  One-time: accept the workspace-trust prompt so the hook runs.
 - **The board is the only state machine** — every transition is a live status move
   (`linear.mjs move …`); cards flow through every column so non-technical operators
   watch work progress in real time. A per-tick reconcile self-heals dropped moves.

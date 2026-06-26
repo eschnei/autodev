@@ -29,7 +29,12 @@
     "deny": [
       "Bash(git push origin {{DEFAULT_BRANCH}}:*)",
       "Bash(git push --force:*)",
-      "Bash(gh pr merge * --auto:*)"
-    ]
+      "Bash(gh pr merge * --auto:*)",
+      "Edit(AGENTS.md)", "Edit(**/AGENTS.md)",
+      "Edit(CLAUDE.md)", "Edit(**/CLAUDE.md)",
+      "Write(AGENTS.md)", "Write(**/AGENTS.md)",
+      "Write(CLAUDE.md)", "Write(**/CLAUDE.md)"
+    ],
+    "_deny_note": "The team's AGENTS.md / CLAUDE.md are READ-ONLY to the engine (autodev.md non-negotiable 10). autoDev lives in .claude/autodev.md + .claude/skills/* + .autodev/. A convention change is proposed via a separate PR with rationale, never edited in place."
   }
 }

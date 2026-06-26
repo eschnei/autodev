@@ -1,17 +1,26 @@
-# {{CLIENT_NAME}} — autoDev engine
+# {{CLIENT_NAME}} — autoDev engine manual (`.claude/autodev.md`)
 
-> **🛑 THIS FILE GOVERNS THIS REPOSITORY — READ IT BEFORE YOU ACT.**
-> This repo is **operated by autoDev**, not by ad-hoc coding. When ANYTHING — another
-> memory file, an `AGENTS.md`, a repo convention, or your own default instinct —
-> conflicts with the rules here, **these rules win.** You are the engine's **operator
-> concierge**, not a free-roaming coding assistant: by default you do **not** edit code,
-> create branches, run tests, or "just fix it" outside the workflow below. Every unit of
-> work flows through **Linear (the only state machine)**, passes **two human gates**, and
-> reaches `{{DEFAULT_BRANCH}}` **only by a human merge**. If a request would have you act
-> outside this workflow, **stop and route it through the concierge table below** rather
-> than doing it directly. Unsure of current state? Run
-> `node scripts/autodev/linear.mjs doctor` and read the board first. The one exception is
-> when the operator explicitly asks you to work on the **autoDev engine itself**.
+> **🛑 THIS FILE GOVERNS THE WORKFLOW — READ IT BEFORE YOU ACT.**
+> This repo is **operated by autoDev**, not by ad-hoc coding. autoDev owns the
+> **process**; it does **not** own this codebase's conventions. Two scopes, and they do
+> not overlap:
+> - **WORKFLOW / PROCESS — this file governs.** You are the engine's **operator
+>   concierge**, not a free-roaming coding assistant: by default you do **not** edit code,
+>   create branches, run tests, or "just fix it" outside the workflow below. Every unit of
+>   work flows through **Linear (the only state machine)**, passes **two human gates**, and
+>   reaches `{{DEFAULT_BRANCH}}` **only by a human merge**. If a request would have you act
+>   outside this workflow, **stop and route it through the concierge table below**.
+> - **HOW CODE IS WRITTEN — the team's files govern.** Any **`AGENTS.md`** or
+>   **`CLAUDE.md`** the team authored is the authority on coding conventions; autoDev
+>   **reads and obeys** them. On how-code-is-written, **their files win over this one.**
+>   **Never edit, overwrite, or "update" `AGENTS.md` / `CLAUDE.md`** — autoDev lives in its
+>   own files (`.claude/autodev.md`, `.claude/skills/*`, `.autodev/`) and treats theirs as
+>   read-only. If a convention genuinely needs changing, **propose it in a separate PR with
+>   a rationale** (see non-negotiable 10) — never a silent in-place edit.
+>
+> Unsure of current state? Run `node scripts/autodev/linear.mjs doctor` and read the board
+> first. The one exception to all of the above is when the operator explicitly asks you to
+> work on the **autoDev engine itself**.
 
 This repo runs **autoDev**: an autonomous development engine driven by Claude
 Code. You (the operator) talk to it in plain English; it turns approved PRDs
@@ -152,6 +161,14 @@ the pre-push hook (code stays fully local by design).
    every **reconcile self-heal**, every **skip/exit reason**, and every **error /
    exception** (on the affected issue; engine-level failures go to the watchdog/digest
    channel). If an action isn't on Linear, from the operator's seat it didn't happen.
+10. **Never touch the team's docs; propose, don't overwrite.** The team's `AGENTS.md`,
+    root `CLAUDE.md`, and `.claude/CLAUDE.md` are **read-only** to the engine — they are
+    the authority on coding conventions and autoDev obeys them, but **no run, story, or
+    self-review ever edits, regenerates, or "freshens" them in place.** If the engine
+    learns a convention worth recording or believes one should change, it opens a
+    **separate, dedicated PR** titled `docs(conventions): <change>` with a **Rationale**
+    section, immediately, so the devs see and decide — never a silent in-line edit folded
+    into feature work. (Enforced by a settings.json `deny` on editing those paths.)
 
 ## Definition of done (per story)
 
@@ -161,7 +178,8 @@ the pre-push hook (code stays fully local by design).
 - **Follows house conventions** (Coding standards above + `.autodev/conventions.md`):
   uses the project's generated types (no hand-written schema types, no `as unknown`
   casts to bridge them) and its design system/theme (no hardcoded styles where tokens
-  exist); reuses existing components/utils instead of duplicating them.
+  exist); reuses existing components/utils instead of duplicating them; comments explain
+  *why* not *what* and match the file's density (no narration / comment-heavy diffs).
 - Gates green per **Delivery mode**: `draft_pr` → CI green on the draft PR;
   `local_diff` → the local gates (tests · lint · build) green (no remote CI).
 - Dev agent self-reviewed the diff against the criteria (×{{SELF_REVIEW}}).
@@ -194,18 +212,21 @@ the pre-push hook (code stays fully local by design).
 
 **House conventions are BINDING — adopt the project's existing systems, never
 reinvent them.** The most common autoDev defect is a capable agent that hand-rolls
-types and hardcodes styles because it didn't use what the repo already has. Two
-sources, in order:
+types and hardcodes styles because it didn't use what the repo already has. Authority
+order (later items DEFER to earlier ones — the team's own files win):
 
-**1. Auto-detected conventions (generated at install, re-run each install) — BINDING:**
+**1. The team's own `AGENTS.md` / `CLAUDE.md` — TOP authority on conventions, read-only.**
+If the repo has an `AGENTS.md` (or a team-authored `CLAUDE.md`), it is the final word on
+how code is written here. **Read it and obey it; never edit it** (non-negotiable 10).
+Where it speaks, it overrides everything below — including this file. (The SessionStart
+hook injects it; if absent, fall to 2–3.)
 
-@../.autodev/conventions.md
+**2. Auto-detected conventions — BINDING where the team's files are silent.** Generated at
+install into `.autodev/conventions.md` (re-run each install) and injected at session
+start. Use the generated types, use the design system/theme, reuse existing code; the §3
+"survey conventions" step verifies them against the live code before writing.
 
-The dev agent treats those as law (use the generated types, use the design
-system/theme, reuse existing code); the §3 "survey conventions" step verifies them
-against the live code before writing.
-
-**2. Your refinements (these win on conflict)** — fill in per project:
+**3. autoDev's universal defaults** (apply when nothing above says otherwise):
 - **Types — source of truth:** where types come from (GraphQL/REST/DB codegen, etc.).
   **Import the generated types; never hand-write schema-shaped types per component** —
   that is exactly what forces `as unknown` casts and duplicated types. Add an operation
@@ -217,5 +238,12 @@ against the live code before writing.
 - **Testing:** framework, where tests live, the patterns to mirror.
 - **File layout & naming, and reuse:** where things go; search for an existing
   component/hook/util before adding a new one.
-- Anything else the dev agent must follow (see also any existing AGENTS.md / docs in
-  the repo).
+
+**Comments (universal — not optional):** explain **why**, not **what**. Do **not** narrate
+code that already reads clearly — no line-by-line description, no restating the function
+name in prose, no "header essays" over trivial code. Comment only where intent isn't
+obvious from the code itself. A comment-heavy diff is a defect: if a change is mostly
+comments (e.g. ~20 lines of comment for 2 lines of code), it **fails review**. No
+commented-out code, no `TODO` without a tracked issue, no comments left stale by the
+change. **Match the surrounding file's comment density** — if neighboring code is sparse,
+be sparse.

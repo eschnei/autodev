@@ -128,7 +128,26 @@ substitute() {
 substitute
 
 # ---- install into the target repo -------------------------------------------
+# autoDev lives in its OWN namespace (.claude/autodev.md, .claude/skills/*, .autodev/) and
+# NEVER overwrites team-authored docs. The engine manual ships as .claude/autodev.md (NOT
+# .claude/CLAUDE.md), so a team CLAUDE.md/AGENTS.md is left untouched. docs_policy
+# (preserve | overwrite, default preserve) only governs a foreign .claude/settings.json.
+DOCS_POLICY=$(get '.install.docs_policy // "preserve"')
 mkdir -p "$REPO/.claude" "$REPO/scripts/autodev"
+
+# A team settings.json may carry their own permissions/hooks — back it up before we write
+# autoDev's (which must carry the SessionStart hook + denies). Never silently clobber it.
+if [[ -f "$REPO/.claude/settings.json" ]] && ! grep -q "autoDev headless permissions" "$REPO/.claude/settings.json" 2>/dev/null; then
+  if [[ "$DOCS_POLICY" == "overwrite" ]]; then
+    echo "⚠︎ overwriting existing .claude/settings.json (install.docs_policy=overwrite)"
+  else
+    cp "$REPO/.claude/settings.json" "$REPO/.claude/settings.json.pre-autodev"
+    echo "⚠︎ found a team .claude/settings.json — backed it up to settings.json.pre-autodev."
+    echo "   autoDev's settings (SessionStart hook + denies) are written over it; merge your"
+    echo "   own permissions/hooks back from the .pre-autodev copy."
+  fi
+fi
+
 cp -R "$TMP/.claude/." "$REPO/.claude/"
 cp "$TMP/scripts/"* "$REPO/scripts/autodev/"
 chmod +x "$REPO/scripts/autodev/"*.sh "$REPO/scripts/autodev/"*.mjs 2>/dev/null || true
@@ -136,13 +155,18 @@ mkdir -p "$REPO/.autodev/ops"
 cp -R "$TMP/ops/." "$REPO/.autodev/ops/"
 cp "$CONFIG" "$REPO/.autodev/deployment.json"
 
+# Report any team-authored convention files we deliberately left untouched.
+for f in AGENTS.md CLAUDE.md .claude/CLAUDE.md; do
+  [[ -f "$REPO/$f" ]] && echo "✓ left your $f untouched — it's the authority on coding conventions; autoDev reads it, never edits it."
+done
+
 # Auto-detect house conventions (generated types · design system · data layer · tests)
 # so the dev agent adopts them instead of hand-rolling types / hardcoding styles.
-# CLAUDE.md imports this file; re-generated on every install.
+# The SessionStart hook injects this file (and autodev.md references it); re-generated each install.
 if bash "$REPO/scripts/autodev/detect-conventions.sh" "$REPO" > "$REPO/.autodev/conventions.md" 2>/dev/null; then
   echo "✓ wrote .autodev/conventions.md (auto-detected project conventions)"
 else
-  echo "# Project conventions — auto-detect unavailable; declare them in CLAUDE.md." > "$REPO/.autodev/conventions.md"
+  echo "# Project conventions — auto-detect unavailable; declare them in your AGENTS.md / CLAUDE.md." > "$REPO/.autodev/conventions.md"
   echo "ℹ︎ convention auto-detect skipped (wrote a stub .autodev/conventions.md)"
 fi
 
@@ -205,16 +229,20 @@ fi
 cat <<EOF
 
 ✅ autoDev engine installed into: $REPO
-   .claude/CLAUDE.md, .claude/skills/{intake,prd,breakdown,devloop}.md,
+   .claude/autodev.md (engine manual — NOT your CLAUDE.md),
+   .claude/skills/{intake,prd,breakdown,devloop}.md,
    .claude/settings.json (+ SessionStart hook), scripts/autodev/*.sh
    (incl. session-init.sh, detect-conventions.sh),
    .autodev/{deployment.json,conventions.md,ops/}
+   Your AGENTS.md / CLAUDE.md (if any) were left untouched — they stay the authority
+   on coding conventions; autoDev reads them and never edits them.
 
 ⚠️  MAKES AUTODEV DRIVE (do this first): open Claude Code in $REPO and ACCEPT the
    workspace-trust prompt. That activates the SessionStart hook in .claude/settings.json,
-   which re-orients every session so the engine drives instead of ad-hoc Claude Code.
-   Without trust, the hook won't run and Claude may "fight" the workflow. Verify the
-   hook prints JSON: bash "$REPO/scripts/autodev/session-init.sh"
+   which injects the engine manual (.claude/autodev.md) + detected conventions every
+   session so the engine drives instead of ad-hoc Claude Code. Without trust the hook
+   won't run; the /devloop command also reads the manual explicitly so headless runs are
+   covered. Verify the hook prints JSON: bash "$REPO/scripts/autodev/session-init.sh"
 
 Now the auth-bound manual steps (these can't be automated for you):
 

@@ -18,6 +18,11 @@
     "feature_to_main": "merge_commit"
   },
 
+  "install": {
+    "docs_policy": "preserve",
+    "_docs_policy_note": "How install treats team-authored instruction files. preserve (default): NEVER overwrite your AGENTS.md / CLAUDE.md (autoDev ships its manual as .claude/autodev.md, not .claude/CLAUDE.md), and back up any foreign .claude/settings.json to settings.json.pre-autodev before writing autoDev's. overwrite: legacy behavior — replace a foreign settings.json in place. Either way autoDev NEVER writes AGENTS.md / CLAUDE.md, and the dev agent is denied from editing them (it proposes convention changes via a separate PR)."
+  },
+
   "tracker": {
     "kind": "linear",
     "mcp": "mcp__linear",

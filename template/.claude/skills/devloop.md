@@ -126,7 +126,7 @@ blocked — requirements gap: <the specific question>"`**.
 - Missing human-only setup (env var, key, shared-DB migration) → **`move <issue>
   blocked --note "🛑 blocked — needs human setup: <the exact ask>"`**.
 Then commit to the story branch (`[sc-<id>]` in the message) and **deliver to the
-feature branch per the Delivery mode** (CLAUDE.md): `draft_pr` → open/update a draft
+feature branch per the Delivery mode** (autodev.md): `draft_pr` → open/update a draft
 PR; `local_diff` → keep the branch local, no push/PR. Then **move → `ai_qa` with the
 "Dev done" summary in the same call**: `move <issue> ai_qa --note "✅ Dev done — <what
 was built> · files <…> · tests <…> · {{CMD_TEST}} ✓ · lint ✓ · build ✓ · delivery:
@@ -161,11 +161,13 @@ the dev agent. Each run re-derives its verdict from artifacts and is asked "did
 we hallucinate this?":
 - **Conformance** (`code-reviewer`, `test-results-analyzer`, `evidence-collector`):
   suite passes; diff meets each criterion; **the diff follows house conventions**
-  (CLAUDE.md ▸ Coding standards + `.autodev/conventions.md`) — `code-reviewer` flags
+  (autodev.md ▸ Coding standards, the team's AGENTS.md/CLAUDE.md, + `.autodev/conventions.md`) — `code-reviewer` flags
   **hand-written types that should be the generated ones** (and any `as unknown` cast
   bridging a type mismatch), **hardcoded styles where a theme token exists**, and
-  **reinvented logic an existing util/component already covers**. A house-convention
-  violation is a real defect → back to dev (§6 Outcomes). **evidence-collector**
+  **reinvented logic an existing util/component already covers**, and **over-commenting**
+  (comments that narrate/restate the code, or a comment-heavy diff out of step with the
+  file's density). A house-convention violation is a real defect → back to dev (§6
+  Outcomes). **evidence-collector**
   exercises it live against the running app (`{{CMD_APP_RUN}}` → `{{APP_URL}}`; the
   configured e2e framework (`qa.e2e_framework`) in `{{E2E_DIR}}` for UI, `api-tester`
   for non-UI) and attaches **screenshots**.
@@ -247,8 +249,9 @@ When all of the epic's stories are merged into the feature branch and it's green
 - **Leanness / quality review (B2 — if `review.quality_review`):** spawn a fresh
   **code-reviewer** over the **assembled feature diff** (`git diff
   {{DEFAULT_BRANCH}}...{{FEATURE_PREFIX}}<slug>`) for **bloat**, not correctness —
-  duplicated logic, copy-paste components, dead code, stale comments, **plus
-  convention bloat: hand-written types that duplicate generated ones (replace with the
+  duplicated logic, copy-paste components, dead code, stale comments,
+  **over-commenting** (comments that narrate/restate the code — strip them to match the
+  file's density), **plus convention bloat: hand-written types that duplicate generated ones (replace with the
   codegen types, drop the `as unknown` casts), hardcoded styles that duplicate theme
   tokens (swap to the token), and reinvented utils/components (reuse the existing one).**
   Apply only **behavior-preserving** simplifications, commit (`[quality]`), then re-run
