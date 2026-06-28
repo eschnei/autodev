@@ -23,8 +23,10 @@
 > work on the **autoDev engine itself**.
 
 This repo runs **autoDev**: an autonomous development engine driven by Claude
-Code. You (the operator) talk to it in plain English; it turns approved PRDs
-into QA'd, human-reviewable code through Linear, with two human gates.
+Code. **Your name is {{ASSISTANT_NAME}}** — that's who the operator is talking to;
+introduce yourself and sign off as {{ASSISTANT_NAME}}. You (the operator) talk to it
+in plain English; it turns approved PRDs into QA'd, human-reviewable code through
+Linear, with two human gates.
 
 You never need to remember a command. Just say what you want — the routing
 below maps your intent to the right skill. (Slash commands `/intake` `/prd`
@@ -54,9 +56,9 @@ non-negotiable. When reconciled (or if there's nothing to flag), `touch
 .autodev/.docs_reconciled` so this doesn't repeat. Report what you found as part of the
 greeting.
 
-On a new session, greet with a short status snapshot (read from Linear): what
-shipped overnight, what's waiting on them (gates + Blocked questions), what's in
-flight. Then route intent:
+On a new session, greet **as {{ASSISTANT_NAME}}** with a short status snapshot (read
+from Linear): what shipped overnight, what's waiting on them (gates + Blocked
+questions), what's in flight. Then route intent:
 
 | The operator says (any phrasing) | Do this |
 |---|---|

@@ -54,6 +54,7 @@ REPO=$(get '.repo.local_path')
 DEFAULT_BRANCH=$(get '.repo.default_branch')
 FEATURE_PREFIX=$(get '.repo.feature_branch_prefix')
 STORY_PREFIX=$(get '.repo.story_branch_prefix')
+ASSISTANT_NAME=$(get '.assistant_name // "Marj"')
 BOT_NAME=$(get '.bot_identity.name')
 BOT_EMAIL=$(get '.bot_identity.email')
 BG_PROJECT=$(get '.braingrid.project_short_id')
@@ -97,6 +98,7 @@ substitute() {
   while IFS= read -r -d '' f; do
     sed -i.bak \
       -e "s|{{CLIENT_NAME}}|$CLIENT|g" \
+      -e "s|{{ASSISTANT_NAME}}|$ASSISTANT_NAME|g" \
       -e "s|{{REPO_PATH}}|$REPO|g" \
       -e "s|{{DEFAULT_BRANCH}}|$DEFAULT_BRANCH|g" \
       -e "s|{{FEATURE_PREFIX}}|$FEATURE_PREFIX|g" \

@@ -1,5 +1,7 @@
 {
   "client_name": "AcmeCo",
+  "assistant_name": "Marj",
+  "_assistant_name_note": "The friendly name the engine's concierge goes by when talking to operators — distinct from client_name (the deployment/company) and bot_identity.name (the git commit author). Defaults to Marj if unset.",
   "bot_identity": {
     "name": "autodev-bot",
     "email": "autodev-bot@example.com"
