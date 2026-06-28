@@ -160,6 +160,10 @@ for f in AGENTS.md CLAUDE.md .claude/CLAUDE.md; do
   [[ -f "$REPO/$f" ]] && echo "✓ left your $f untouched — it's the authority on coding conventions; autoDev reads it, never edits it."
 done
 
+# Flag, at FIRST install, any rule in those files that fights the autoDev workflow so it's
+# reconciled before a run (advisory; the first Claude session also reconciles semantically).
+bash "$REPO/scripts/autodev/check-docs.sh" "$REPO" 2>/dev/null || true
+
 # Auto-detect house conventions (generated types · design system · data layer · tests)
 # so the dev agent adopts them instead of hand-rolling types / hardcoding styles.
 # The SessionStart hook injects this file (and autodev.md references it); re-generated each install.
@@ -232,7 +236,7 @@ cat <<EOF
    .claude/autodev.md (engine manual — NOT your CLAUDE.md),
    .claude/skills/{intake,prd,breakdown,devloop}.md,
    .claude/settings.json (+ SessionStart hook), scripts/autodev/*.sh
-   (incl. session-init.sh, detect-conventions.sh),
+   (incl. session-init.sh, detect-conventions.sh, check-docs.sh),
    .autodev/{deployment.json,conventions.md,ops/}
    Your AGENTS.md / CLAUDE.md (if any) were left untouched — they stay the authority
    on coding conventions; autoDev reads them and never edits them.

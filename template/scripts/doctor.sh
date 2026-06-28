@@ -94,5 +94,10 @@ else
   [[ "$HERM" == "true" ]] && ok "hermetic on; no prod endpoints detected in env" || warn "qa.hermetic disabled (fine if there are no external prod services)"
 fi
 
+# team docs vs the autoDev workflow (advisory — never fails the preflight)
+if [[ -f "$HERE/check-docs.sh" ]]; then
+  bash "$HERE/check-docs.sh" "$REPO" || true
+fi
+
 echo
 [[ $fail -eq 0 ]] && { echo "doctor: PASS"; exit 0; } || { echo "doctor: FAIL — fix the ✗ items above"; exit 1; }

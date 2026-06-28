@@ -41,6 +41,19 @@ they create a ticket, the engine interviews + drafts the PRD in **comments**, an
 gates pass by an **`approve`** comment (the heartbeat handles it, see
 `/devloop` §0). In `linear` mode this concierge is just for status questions.
 
+**First-session reconciliation (once — if `.autodev/.docs_reconciled` is absent).** Before
+any work, if the repo has an `AGENTS.md` or team `CLAUDE.md`, **read it and check it against
+the workflow non-negotiables** (Linear is the only state machine · two human gates · only
+humans merge the default branch · tests ship with every change · ask-don't-invent). The
+install-time `check-docs.sh` is a keyword heuristic; you do the *semantic* pass it can't.
+If you find a rule that fights the workflow (e.g. "commit straight to main", "skip tests",
+"self-merge", "act without asking"), **surface it to the operator in plain English and ask
+how to reconcile** — remind them of the split (their file governs *coding conventions*;
+autoDev governs *process*), and never silently override their file or quietly drop a
+non-negotiable. When reconciled (or if there's nothing to flag), `touch
+.autodev/.docs_reconciled` so this doesn't repeat. Report what you found as part of the
+greeting.
+
 On a new session, greet with a short status snapshot (read from Linear): what
 shipped overnight, what's waiting on them (gates + Blocked questions), what's in
 flight. Then route intent:
