@@ -95,9 +95,13 @@ None eligible anywhere → exit (Blocked stories are visible on Linear).
   branch <name>"`.
 - Spawn the story's **`agent:` persona** (from breakdown / `dev_routing`) as the
   dev subagent, in its **own git worktree** on a story branch
-  `{{STORY_PREFIX}}/sc-<id>/<slug>` cut from feature-branch HEAD. Fresh context;
-  it reads the PRD, the BrainGrid task/plan, `AGENTS.md`/`CLAUDE.md`,
-  **`.autodev/conventions.md` (the auto-detected house conventions)**, and its story.
+  `{{STORY_PREFIX}}/sc-<id>/<slug>` cut from feature-branch HEAD. Fresh context.
+  **It MUST read, and the spawn prompt MUST include, the engine's universal coding
+  standards** — `.claude/autodev.md` ▸ **Coding standards** (comment discipline, types,
+  styling) — because the subagent does NOT otherwise load autodev.md and will over-comment
+  / hand-roll types without it. It also reads: the PRD, the BrainGrid task/plan, the
+  **team's** `AGENTS.md`/`CLAUDE.md` (conventions authority), **`.autodev/conventions.md`**
+  (auto-detected conventions + the comment rule), and its story.
 - **Survey conventions BEFORE writing (do not reinvent what the repo already has).**
   A fresh-context agent that skips this hand-rolls types and hardcodes styles — the #1
   autoDev defect. The persona must, against the LIVE code:
@@ -110,6 +114,11 @@ None eligible anywhere → exit (Blocked stories are visible on Linear).
     colors / spacing / typography; extend the theme if a token is missing.
   - **Reuse:** grep for an existing component/hook/util that already does the job before
     writing a new one.
+  - **Comments:** explain **why**, not **what**. Do NOT narrate code that reads clearly, do
+    NOT restate the function/variable name in prose, no header essays over trivial code, no
+    commented-out code, no `TODO` without a tracked issue. **Match the surrounding file's
+    comment density** (sparse file → sparse). A change that is mostly comments (the recurring
+    autoDev defect) is wrong — write the clear name/structure instead of the comment.
   If the convention is genuinely ambiguous (two competing patterns, none canonical), that
   is a requirements gap → §4 (ask / Blocked), not a coin-flip.
 - **Each diff must include tests** covering the acceptance criteria
@@ -123,6 +132,11 @@ blocked — requirements gap: <the specific question>"`**.
 
 ## 5 · Self-check (gating)
 `{{CMD_TEST}}` pass · tests-for-criteria present · `{{CMD_LINT}}` clean.
+- **Comment-density pass (gating):** re-read the diff and **strip over-commenting** before
+  handoff — delete comments that narrate/restate the code, header essays over trivial code,
+  commented-out code, and untracked TODOs; keep only *why*-comments where intent isn't
+  obvious, matched to the file's existing density. A diff that is mostly comments does not
+  pass self-check (this is the recurring autoDev defect — catch it here, not at QA).
 - Missing human-only setup (env var, key, shared-DB migration) → **`move <issue>
   blocked --note "🛑 blocked — needs human setup: <the exact ask>"`**.
 Then commit to the story branch (`[sc-<id>]` in the message) and **deliver to the

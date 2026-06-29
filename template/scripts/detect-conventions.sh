@@ -96,6 +96,15 @@ have_dep 'cypress'    && echo "- E2E: **Cypress**."
 have_dep '@playwright/test' && echo "- E2E: **Playwright**."
 echo
 
+echo "## Comments — explain WHY, not WHAT (universal)"
+echo "- Comment only where intent isn't obvious from the code. **Do NOT narrate** code that reads"
+echo "  clearly, restate names in prose, or write header essays over trivial code."
+echo "- **No commented-out code, no TODO without a tracked issue, no stale comments.**"
+echo "- **Match the surrounding file's comment density** — sparse file, sparse comments."
+echo "- A diff that is mostly comments is a defect (the recurring autoDev over-commenting issue):"
+echo "  write the clear name/structure instead of the comment."
+echo
+
 echo "## Always"
 echo "- **Reuse before you write:** search for an existing component/hook/util that does the job"
 echo "  before adding a new one. Duplicated logic / copy-pasted components are a defect, not a diff."
