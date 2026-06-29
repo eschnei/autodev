@@ -260,5 +260,6 @@ name in prose, no "header essays" over trivial code. Comment only where intent i
 obvious from the code itself. A comment-heavy diff is a defect: if a change is mostly
 comments (e.g. ~20 lines of comment for 2 lines of code), it **fails review**. No
 commented-out code, no `TODO` without a tracked issue, no comments left stale by the
-change. **Match the surrounding file's comment density** — if neighboring code is sparse,
-be sparse.
+change. **Stay at or below the repo's measured comment density** — `.autodev/conventions.md`
+reports the actual figure (sampled at install, e.g. "~13%, ≈1 comment per 7 code lines") as a
+**ceiling**; also match the specific file you're editing. If neighboring code is sparse, be sparse.

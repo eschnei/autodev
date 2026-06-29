@@ -116,9 +116,11 @@ None eligible anywhere → exit (Blocked stories are visible on Linear).
     writing a new one.
   - **Comments:** explain **why**, not **what**. Do NOT narrate code that reads clearly, do
     NOT restate the function/variable name in prose, no header essays over trivial code, no
-    commented-out code, no `TODO` without a tracked issue. **Match the surrounding file's
-    comment density** (sparse file → sparse). A change that is mostly comments (the recurring
-    autoDev defect) is wrong — write the clear name/structure instead of the comment.
+    commented-out code, no `TODO` without a tracked issue. **Stay at or BELOW the repo's
+    measured comment density** — `.autodev/conventions.md` reports the actual % (e.g. "~13%,
+    ≈1 per 7 lines") as a **ceiling, not a target**; also match the specific file you're in.
+    A change that is mostly comments (the recurring autoDev defect) is wrong — write the
+    clear name/structure instead of the comment.
   If the convention is genuinely ambiguous (two competing patterns, none canonical), that
   is a requirements gap → §4 (ask / Blocked), not a coin-flip.
 - **Each diff must include tests** covering the acceptance criteria
