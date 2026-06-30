@@ -37,7 +37,7 @@ autoDev/
 │   │   ├── check-docs.sh            # first-install scan: flags rules in your AGENTS.md/CLAUDE.md that fight the workflow
 │   │   ├── linear.mjs               # the Linear helper (move/comment/show/update/relate/attach/create-… )
 │   │   ├── report.mjs               # periodic operator digest (reporting.cadence)
-│   │   ├── doctor.sh                # preflight: tools · toolchain · token · config ids · hermetic safety
+│   │   ├── doctor.sh                # preflight: tools · toolchain · token · config ids · hermetic safety · visual-QA driver · docs conflicts
 │   │   ├── devloop-tick.sh          # timer entry: portable lock + rate-limit gate + tick + digest
 │   │   ├── watchdog.sh              # dead-man alarm + hung-tick recovery → Linear
 │   │   └── notify.sh                # rate-limit pause/resume → Linear

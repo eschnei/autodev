@@ -94,6 +94,36 @@ else
   [[ "$HERM" == "true" ]] && ok "hermetic on; no prod endpoints detected in env" || warn "qa.hermetic disabled (fine if there are no external prod services)"
 fi
 
+echo "visual qa (UI screenshots):"
+VQA=$(jq -r '.qa.visual_qa.enabled // false' "$CONFIG")
+if [[ "$VQA" != "true" ]]; then
+  ok "qa.visual_qa disabled — skipping (no UI screenshot driver needed)"
+else
+  VMODE=$(jq -r '.qa.visual_qa.mode // "advisory"' "$CONFIG")
+  DRIVER=$(jq -r '.qa.live_browser_driver // "playwright_mcp"' "$CONFIG")
+  case "$DRIVER" in
+    *mcp*)
+      if command -v claude >/dev/null && claude mcp list 2>/dev/null | grep -qi playwright; then
+        ok "Playwright MCP configured — visual QA can capture screenshots"
+      else
+        ADD="add it:  claude mcp add playwright npx @playwright/mcp@latest"
+        if [[ "$VMODE" == "gating" ]]; then
+          bad "qa.visual_qa enabled in GATING mode but Playwright MCP not found — the visual gate can't run. $ADD (or set qa.visual_qa.mode=advisory / enabled=false)"
+        else
+          warn "qa.visual_qa enabled but Playwright MCP not found — UI stories won't get visual screenshots (the angle will flag 'driver unavailable'). $ADD"
+        fi
+      fi
+      ;;
+    *)
+      if command -v npx >/dev/null && npx --no-install playwright --version >/dev/null 2>&1; then
+        ok "playwright available (driver '$DRIVER')"
+      else
+        warn "qa.visual_qa enabled but driver '$DRIVER' not verifiable — ensure it's installed (e.g. 'npx playwright install'), or switch qa.live_browser_driver to playwright_mcp"
+      fi
+      ;;
+  esac
+fi
+
 # team docs vs the autoDev workflow (advisory — never fails the preflight)
 if [[ -f "$HERE/check-docs.sh" ]]; then
   bash "$HERE/check-docs.sh" "$REPO" || true
