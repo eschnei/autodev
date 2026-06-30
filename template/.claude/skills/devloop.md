@@ -149,7 +149,7 @@ was built> · files <…> · tests <…> · {{CMD_TEST}} ✓ · lint ✓ · buil
 <draft PR url | local diff>"`. The delivery action (PR opened/updated, or local diff
 prepared) must be named in that note so the operator can find the review artifact.
 
-## 6 · AI QA — three angles (all always run), live is advisory
+## 6 · AI QA — three always-run angles + a conditional visual angle; live is advisory
 **Hermetic FIRST (B3 · SAFETY):** before ANY test/build/app/live run, export the
 `qa.hermetic.env` overrides so external calls hit local/sandbox or are blanked — the
 engine must **never** drive tests or the live app against PRODUCTION services. If
@@ -170,7 +170,7 @@ strings already encode the required exclusions/concurrency (e.g. `--exclude=bugg
 failures will produce false reds. A layer with a documented `qa._known_baseline`
 issue (e.g. pre-existing broken suites) is judged against that baseline, not zero.
 
-🗒️ **log:** `▶️ AI QA started · 3 angles` (on a retry, `🔁 QA round <n>`).
+🗒️ **log:** `▶️ AI QA started · 3 angles` (+ `· visual` when the story is UI-heavy; on a retry, `🔁 QA round <n>`).
 
 Spawn **fresh, independent** reviewer contexts from `personas.qa_angles` — never
 the dev agent. Each run re-derives its verdict from artifacts and is asked "did
@@ -194,9 +194,31 @@ we hallucinate this?":
   bad/malicious inputs, error paths, security (injection, authz, data exposure).
 - **Regression** (`test-results-analyzer`, `reality-checker`): full suite +
   adjacent flows + end-to-end; unintended drift elsewhere.
-- **Verdict** (`reality-checker`) combines them.
-- 🗒️ **log the verdict:** `conformance ✓ · adversarial ✓ (N edge cases) · regression ✓
-  → PASS` (on fail, the specific defects — see Outcomes below).
+- **Visual / UI** (`personas.qa_angles.visual` — `evidence-collector`, `ui-designer`,
+  `architect-ux`) — **conditional & advisory, only when `qa.visual_qa.enabled` AND the
+  story is UI-heavy** (touched files match `qa.visual_qa.ui_globs`, OR wireframes are
+  attached (C1), OR it has a `design`/`ui` label). Non-UI stories **skip this entirely**.
+  When it runs:
+  - **`evidence-collector`** drives the built screen live (`{{CMD_APP_RUN}}` → `{{APP_URL}}`,
+    `qa.live_browser_driver`) at each `qa.visual_qa.breakpoints` width and across the
+    applicable `qa.visual_qa.states` (default/hover/focus/empty/loading/error); attaches
+    screenshots per breakpoint/state.
+  - **`ui-designer`** judges **design-spec fidelity** (vs attached wireframes — deepens the
+    C2 diff), **spacing/alignment/hierarchy**, and **theme-token adherence** — off-theme
+    rendering (hardcoded colors/spacing that drifts from the design system) is the
+    styling-convention defect **made visible on screen**.
+  - **`architect-ux`** checks **responsive layout** (no overflow/clipping/broken reflow
+    across the breakpoints) and **visual a11y** (contrast, visible focus, target size,
+    obvious keyboard-nav/label gaps).
+  - **Advisory, like the live check:** a **clear functional-visual breakage** (broken
+    layout, overflow/clipping, unreadable contrast, content cut off) routes the story
+    back to dev as a defect (or blocks, if `qa.visual_qa.mode: gating`); **subjective
+    polish/aesthetics never auto-block** — they flag for the human (`⚠️ visual: …` + the
+    screenshots). When `qa.visual_qa.enabled` is false, skip the angle.
+- **Verdict** (`reality-checker`) combines them (visual is advisory input, not a hard gate).
+- 🗒️ **log the verdict:** `conformance ✓ · adversarial ✓ (N edge cases) · regression ✓`
+  (+ `· visual ✓ / ⚠ <note>` when it ran) `→ PASS` (on fail, the specific defects — see
+  Outcomes below).
 
 **Gating vs advisory:**
 - **Auto-blocking gates are code-level:** tests pass · tests-for-criteria · the
@@ -204,6 +226,9 @@ we hallucinate this?":
 - **The live browser check is NEVER a gate** — always attempted, screenshots
   always attached, but a failed/un-runnable live check **flags** the story
   (`⚠️ live check: failed/not run — see screenshots`) and does **not** block it.
+- **The visual / UI angle is advisory by default** (`qa.visual_qa.mode`): a clear
+  functional-visual breakage routes back to dev; subjective polish only flags. Runs on
+  UI-heavy stories only.
 
 **Outcomes:**
 - **Gating pass + CI green** → see §7 (granularity decides what happens next).

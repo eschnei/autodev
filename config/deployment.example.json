@@ -129,6 +129,16 @@
     "e2e_framework": "cypress",
     "e2e_dir": "e2e",
     "live_browser_driver": "playwright_mcp",
+    "visual_qa": {
+      "enabled": true,
+      "mode": "advisory",
+      "_mode_note": "advisory (default): a clear functional-visual breakage (broken layout, overflow/clipping, unreadable contrast) routes the story back to dev as a defect; subjective polish only flags for the human (⚠ visual). gating: also block on the breakages (stricter — for design-critical products). Subjective aesthetics NEVER auto-block in either mode.",
+      "ui_globs": ["ui/", "src/components", "src/pages", "*.tsx", "*.jsx", "*.vue", "*.svelte", "*.css", "*.scss"],
+      "_ui_globs_note": "A story whose touched files match any of these (or that has wireframes attached, or a design/ui label) is UI-heavy → the 4th visual angle runs. Non-UI stories skip it (no slowdown).",
+      "breakpoints": ["375", "768", "1280"],
+      "states": ["default", "hover", "focus", "empty", "loading", "error"],
+      "_states_note": "evidence-collector captures the built screen at each breakpoint (px width) and exercises these interaction/data states where applicable; screenshots attach to the story as evidence."
+    },
     "docker_up": "docker compose up -d",
     "_docker_up_note": "A6 — bring up DATA SERVICES only (DB/cache/search/mail), not the app container (it clashes with the locally-run server/UI).",
     "seed_test": "",
@@ -203,10 +213,12 @@
       { "match": "default", "persona": "general-purpose", "why": "fallback when no clear specialist" }
     ],
     "qa_angles": {
-      "_note": "Each story is verified by three independent, fresh-context QA runs (all always run); the live browser check is advisory evidence, never a gate.",
+      "_note": "Each story is verified by three ALWAYS-RUN fresh-context QA runs, plus a CONDITIONAL visual angle for UI-heavy stories. The live browser + visual checks are advisory evidence, never a hard gate.",
       "conformance": ["code-reviewer", "test-results-analyzer", "evidence-collector"],
       "adversarial": ["application-security-engineer", "api-tester"],
       "regression": ["test-results-analyzer", "reality-checker"],
+      "visual": ["evidence-collector", "ui-designer", "architect-ux"],
+      "_visual_note": "4th angle — runs ONLY for UI-heavy stories (see qa.visual_qa). No dedicated visual-QA agent exists; it's composed: evidence-collector captures live screenshots across breakpoints + interaction states; ui-designer judges design-spec fidelity, spacing/hierarchy, and THEME-TOKEN adherence (off-theme rendering = the styling-convention defect made visible); architect-ux checks responsive layout + visual a11y (contrast, focus-visible, target size). Advisory: a clear functional-visual breakage routes back to dev; subjective polish only flags.",
       "verdict": "reality-checker",
       "live_evidence": "evidence-collector"
     }

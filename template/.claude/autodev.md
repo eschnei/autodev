@@ -157,8 +157,9 @@ the pre-push hook (code stays fully local by design).
    API/runtime checks for non-UI), but a live failure **flags for the human,
    never blocks**. The auto-blocking gates are code-level: tests pass,
    tests-for-criteria present, the adversarial/regression review, and CI green.
-7. **Builder ≠ reviewer; QA = three angles** (conformance · adversarial ·
-   regression), all always run.
+7. **Builder ≠ reviewer; QA = three always-run angles** (conformance · adversarial ·
+   regression) **+ a conditional visual angle** (UI-heavy stories only — design fidelity,
+   theme adherence, responsive, visual a11y; advisory like the live check).
 8. **Hermetic always (SAFETY).** Every test/build/app/live run applies
    `qa.hermetic.env` so external calls hit local/sandbox or are blanked. The engine
    **never** drives tests or the live app against PRODUCTION services/creds. If prod

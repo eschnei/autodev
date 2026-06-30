@@ -149,6 +149,7 @@ them — install them into `~/.claude/agents/` from that repo; routing lives in
 | PRD · Breakdown | product-manager · project-manager-senior |
 | Dev (routed by files) | backend-architect · frontend-developer · database-optimizer · architect-ux / ui-designer |
 | QA — conformance · adversarial · regression/verdict | code-reviewer · test-results-analyzer · evidence-collector · application-security-engineer · api-tester · **reality-checker** |
+| QA — visual/UI (conditional, UI-heavy stories) | evidence-collector · **ui-designer** · **architect-ux** (design fidelity · theme adherence · responsive · visual a11y; advisory) |
 
 ## Status
 
