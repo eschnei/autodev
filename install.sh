@@ -231,6 +231,29 @@ else
   echo "   Create the standard columns manually: .autodev/ops/linear-setup.md"
 fi
 
+# ---- activation guidance (context-aware) ------------------------------------
+# The trust/hook step confuses operators who are ALREADY in Claude Code — don't tell
+# them to "open Claude Code" when they're sitting in it. Tailor the wording.
+CUR_ROOT="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || true)"
+REPO_ABS="$(cd "$REPO" && pwd -P)"
+SAME_REPO=0
+if [[ -n "$CUR_ROOT" && "$(cd "$CUR_ROOT" && pwd -P)" == "$REPO_ABS" ]]; then SAME_REPO=1; fi
+if [[ -n "${CLAUDECODE:-}" ]]; then
+  if [[ "$SAME_REPO" == 1 ]]; then
+    ACTIVATE="▶ ACTIVATE — you're already in Claude Code, in THIS repo (no need to 'open' it again).
+   Your current session already loaded settings, so it won't pick up the new hook yet. Just
+   START A NEW SESSION here (exit + relaunch, or /clear), and accept the one-time
+   trust/hook approval that appears. (Or run /hooks to review + approve it now.)"
+  else
+    ACTIVATE="▶ ACTIVATE — you're in Claude Code but in a different folder. Point Claude Code at the
+   target repo and accept the one-time trust/hook prompt: open $REPO as the workspace
+   (or  cd \"$REPO\" && claude ). Nothing to reinstall — just switch the workspace."
+  fi
+else
+  ACTIVATE="▶ ACTIVATE: open the repo in Claude Code —  cd \"$REPO\" && claude  — and accept the
+   one-time trust/hook approval."
+fi
+
 # ---- report -----------------------------------------------------------------
 cat <<EOF
 
@@ -243,12 +266,12 @@ cat <<EOF
    Your AGENTS.md / CLAUDE.md (if any) were left untouched — they stay the authority
    on coding conventions; autoDev reads them and never edits them.
 
-⚠️  MAKES AUTODEV DRIVE (do this first): open Claude Code in $REPO and ACCEPT the
-   workspace-trust prompt. That activates the SessionStart hook in .claude/settings.json,
-   which injects the engine manual (.claude/autodev.md) + detected conventions every
-   session so the engine drives instead of ad-hoc Claude Code. Without trust the hook
-   won't run; the /devloop command also reads the manual explicitly so headless runs are
-   covered. Verify the hook prints JSON: bash "$REPO/scripts/autodev/session-init.sh"
+⚠️  MAKES AUTODEV DRIVE (do this to finish setup):
+$ACTIVATE
+   This turns on the SessionStart hook (.claude/settings.json) that injects the manual +
+   conventions every session, so autoDev drives instead of ad-hoc Claude Code. The /devloop
+   command also reads the manual directly, so headless/timer runs work even before trust.
+   Sanity-check the hook now: bash "$REPO/scripts/autodev/session-init.sh"  (prints JSON)
 
 Now the auth-bound manual steps (these can't be automated for you):
 

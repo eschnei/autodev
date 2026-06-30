@@ -53,8 +53,10 @@ cp config/deployment.example.json config/<client>.json   # fill: repo, branch, L
 # (if client_name is still unset/placeholder, install prompts for it and saves it back;
 #  set AUTODEV_NONINTERACTIVE=1 to skip the prompt in CI/managed installs)
 scripts/autodev/doctor.sh                                 # preflight — fix any ✗ before running
-# IMPORTANT: open Claude Code in the repo and ACCEPT the workspace-trust prompt — that
-#   activates the SessionStart hook that makes autoDev (not ad-hoc Claude Code) drive.
+# IMPORTANT: start a Claude Code session IN this repo (if you're already in Claude Code,
+#   just open this repo as the workspace / start a new session) and ACCEPT the one-time
+#   trust+hook prompt — that activates the SessionStart hook that makes autoDev drive.
+#   (install.sh prints the exact step for your situation.)
 # then: wire BrainGrid (optional — see below) · connect Linear MCP · bot identity + branch protection
 ```
 
