@@ -15,22 +15,13 @@ import { readFileSync, appendFileSync, mkdirSync, statSync, writeFileSync, readd
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { execSync } from 'node:child_process';
+import { loadConfig } from './lib/config.mjs';
 
 const API = 'https://api.linear.app/graphql';
 const force = process.argv.includes('--force');
 
-function findConfig() {
-  if (process.env.AUTODEV_CONFIG) return process.env.AUTODEV_CONFIG;
-  let dir = process.cwd();
-  for (let i = 0; i < 12; i++) {
-    const p = join(dir, '.autodev', 'deployment.json');
-    try { readFileSync(p); return p; } catch {}
-    const up = dirname(dir); if (up === dir) break; dir = up;
-  }
-  console.error('report.mjs: no .autodev/deployment.json'); process.exit(1);
-}
-const CONFIG_PATH = findConfig();
-const cfg = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+const { cfg, configPath: CONFIG_PATH } = loadConfig();
+if (!cfg) { console.error('report.mjs: no .autodev/deployment.json'); process.exit(1); }
 const rep = cfg.reporting || {};
 
 // cadence → seconds
@@ -52,7 +43,7 @@ if (!force && last && now - last < win) process.exit(0); // not due yet
 
 function loadToken() {
   if (process.env.LINEAR_API_TOKEN) return process.env.LINEAR_API_TOKEN.trim();
-  const f = join(homedir(), '.config', 'autodev', `${cfg.client_name || 'client'}.linear.token`);
+  const f = cfg.tracker?.linear?.api_token_file || join(homedir(), '.config', 'autodev', `${cfg.client_name || 'client'}.linear.token`);
   try { return readFileSync(f, 'utf8').trim(); } catch { return null; }
 }
 const token = loadToken();
@@ -82,6 +73,9 @@ if ((cfg.tracker?.kind || 'linear') === 'local') {
       if (b) buckets[b]++;
     }
   } catch { /* no board yet — zeros */ }
+} else if ((cfg.tracker?.kind || 'linear') !== 'linear') {
+  // fail loud, never a silently-zero digest: only local + linear have snapshot paths
+  buckets.unsupported = cfg.tracker.kind;
 } else if (token && cfg.tracker?.team_id) {
   const d = await gql('query($t:String!){team(id:$t){issues(first:250){nodes{state{name type}}}}}', { t: cfg.tracker.team_id });
   for (const n of d?.team?.issues?.nodes || []) {
@@ -103,11 +97,14 @@ let wall = 'running';
 try { const until = Number(readFileSync(join(RUN_HOME, 'rate-limited-until'), 'utf8').trim()); if (until > now) wall = `rate-limited (resumes ${new Date(until * 1000).toLocaleTimeString()})`; } catch {}
 
 const sinceTxt = last ? `since ${new Date(last * 1000).toLocaleString()}` : 'first report';
+const counts = buckets.unsupported
+  ? `• board counts n/a — the digest doesn't support tracker.kind=${buckets.unsupported} yet (check the board directly)`
+  : `• in-flight (dev/QA): ${buckets.inflight}   • queued: ${buckets.queued}
+• ⏳ awaiting you (gates): ${buckets.awaiting_human}   • 🛑 blocked: ${buckets.blocked}
+• ✅ done: ${buckets.done}`;
 const digest =
 `📊 *autoDev digest — ${cfg.client_name || ''}* (${sinceTxt})
-• in-flight (dev/QA): ${buckets.inflight}   • queued: ${buckets.queued}
-• ⏳ awaiting you (gates): ${buckets.awaiting_human}   • 🛑 blocked: ${buckets.blocked}
-• ✅ done: ${buckets.done}   • commits ${last ? 'this window' : '(recent)'}: ${merged}
+${counts}   • commits ${last ? 'this window' : '(recent)'}: ${merged}
 • engine: ${wall}`;
 
 // --- deliver ---

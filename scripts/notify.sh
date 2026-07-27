@@ -11,10 +11,12 @@
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO="${1:?usage: notify.sh <repo-path> {limited <epoch>|resumed|stalled <age>}}"
+REPO="${1:?usage: notify.sh <repo-path> \{limited <epoch>|resumed|stalled <age>\}}"
 export AUTODEV_CONFIG="$REPO/.autodev/deployment.json"
 KIND="${2:-}"
-RUN_HOME="$(jq -r '.runner.home_dir // "~/.autodev"' "$AUTODEV_CONFIG" 2>/dev/null || echo "~/.autodev")"
+source "$HERE/lib/config.sh" || { echo "notify.sh: missing lib/config.sh next to $0" >&2; exit 1; }
+autodev_resolve_config "$REPO"
+RUN_HOME="$(autodev_cfg_get runner.home_dir "~/.autodev")"
 RUN_HOME="${RUN_HOME/#\~/$HOME}"
 LOG="$RUN_HOME/logs/notify.log"
 mkdir -p "$(dirname "$LOG")"

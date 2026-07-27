@@ -8,6 +8,12 @@ fails to parse as JSON, **stop and tell the operator** — point at the exact pa
 error and the file path; do not run init over it (that would silently overwrite
 whatever they were mid-editing). Only a missing file triggers the automatic bootstrap.
 
+If `repo.local_path` or any `runner.*` field is still inline in `.autodev/deployment.json`
+(pre-split config — `${CLAUDE_PLUGIN_ROOT}/scripts/doctor.sh` flags this with a `!`), ask
+the operator once whether to run `/autodev:init` to split them into
+`.autodev/deployment.local.json` (gitignored) before continuing — proceed either way,
+this never blocks intake.
+
 Read `${CLAUDE_PLUGIN_ROOT}/reference/manual.md` — it's authoritative for the workflow
 (not auto-loaded, so read it explicitly here). Also read `.autodev/conventions.md` if
 present (auto-detected coding conventions) — generate it first via

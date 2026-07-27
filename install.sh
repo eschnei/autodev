@@ -62,6 +62,7 @@ if [[ -f "$S" ]]; then
   MERGED=$(jq --argjson add "$HOOKS_JSON" '
     .hooks = ((.hooks // {}) | with_entries(.value |= (map(.hooks |= map(select((.command // "") | contains(".autodev/engine") | not))) | map(select(.hooks | length > 0)))))
     | .hooks.SessionStart = ((.hooks.SessionStart // []) + $add.hooks.SessionStart)
+    | .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) + $add.hooks.UserPromptSubmit)
     | .hooks.PreToolUse  = ((.hooks.PreToolUse  // []) + $add.hooks.PreToolUse)
   ' "$S")
   printf '%s\n' "$MERGED" > "$S"

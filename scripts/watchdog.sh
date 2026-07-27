@@ -11,7 +11,9 @@ set -uo pipefail
 REPO="${1:?usage: watchdog.sh <repo-path>}"
 CONFIG="$REPO/.autodev/deployment.json"
 [[ -f "$CONFIG" ]] || { echo "watchdog: no $CONFIG" >&2; exit 1; }
-RUN_HOME="$(jq -r '.runner.home_dir // "~/.autodev"' "$CONFIG")"
+source "$(dirname "$0")/lib/config.sh" || { echo "watchdog: missing lib/config.sh next to $0" >&2; exit 1; }
+autodev_resolve_config "$REPO"
+RUN_HOME="$(autodev_cfg_get runner.home_dir "~/.autodev")"
 RUN_HOME="${RUN_HOME/#\~/$HOME}"
 HEARTBEAT="$RUN_HOME/heartbeat"
 PAUSE="$RUN_HOME/rate-limited-until"
@@ -20,7 +22,17 @@ STALE_SECONDS=3600
 HUNG_SECONDS=2700        # a single tick shouldn't hold the lock this long with no commits
 
 now=$(date +%s)
-mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo "$now"; }
+# BSD stat's -f FORMAT and GNU stat's -f (filesystem mode) collide: on GNU stat,
+# `stat -f %m FILE` fails but still prints filesystem info to stdout before it does
+# (only stderr is a format error there), so each attempt must be captured on its own
+# — piping both attempts through a single `||` leaks the failed one's stdout into the
+# result and corrupts it.
+mtime() {
+  local m
+  m=$(stat -f %m "$1" 2>/dev/null) && { printf '%s' "$m"; return; }
+  m=$(stat -c %Y "$1" 2>/dev/null) && { printf '%s' "$m"; return; }
+  printf '%s' "$now"
+}
 
 # A known rate-limit pause is healthy-idle, not a stall.
 if [[ -f "$PAUSE" ]]; then

@@ -23,6 +23,8 @@ Set up autoDev for **this repo**. Safe to re-run any time to reconfigure.
 2. Detect what you can from the repo, silently, before asking anything:
    - Default branch: `git symbolic-ref --short refs/remotes/origin/HEAD` (fall back
      to the current branch via `git symbolic-ref --short HEAD`).
+   - Absolute repo path (for `repo.local_path`, written to the local config in step 4):
+     `git rev-parse --show-toplevel`.
    - Package manager: `bun.lockb`/`bun.lock` → bun · `pnpm-lock.yaml` → pnpm ·
      `yarn.lock` → yarn · `package.json` present (else) → npm.
    - If a package manager was detected, read its `package.json` `scripts` for
@@ -56,9 +58,23 @@ Set up autoDev for **this repo**. Safe to re-run any time to reconfigure.
    substituted in, and everything else left at the example's defaults. In
    particular: leave `tracker.statuses.*.id` / `tracker.team_id` as
    `"FILL_AT_SETUP"` when `tracker.kind` is `linear` — those are filled by hand
-   after the Linear board is created (step 6 below). Drop the `install` block
+   after the Linear board is created (step 7 below). Drop the `install` block
    entirely (`docs_policy` was an `install.sh`-era concept; this plugin never
-   writes into `.claude/` at all, so there is nothing to preserve-vs-overwrite).
+   writes into `.claude/settings.json` or over a team-authored file — its only
+   `.claude/` artifact is step 6's identity pointer, so there is nothing to
+   preserve-vs-overwrite).
+
+   Then read `${CLAUDE_PLUGIN_ROOT}/reference/deployment.local.example.json` and
+   write `.autodev/deployment.local.json` with that structure: `repo.local_path`
+   = the absolute path detected in step 2, `runner.*` left at the example's
+   defaults. If that file already exists, leave the values already configured in
+   it alone — only add keys it's missing and refresh `repo.local_path` to the path
+   detected in step 2 (a re-run must never reset a customized `runner.home_dir`,
+   `runner.logs_dir`, or a token-file override back to the example's default).
+   This file is per-machine and must never be committed — append
+   `.autodev/deployment.local.json` to the repo's `.gitignore` (create the file
+   with just that one line if it doesn't exist yet; if it exists and already
+   ignores it, leave it alone).
 5. Create the `.autodev` runtime directories: `mkdir -p .autodev/board .autodev/logs`
    (harmless if `tracker.kind` ends up `linear` — `board/` just stays empty; the
    git-native board and the operator digest log both land here on first use).
@@ -83,4 +99,7 @@ Set up autoDev for **this repo**. Safe to re-run any time to reconfigure.
 8. Run `${CLAUDE_PLUGIN_ROOT}/scripts/doctor.sh` from the repo root and show the
    operator anything it flags with a ✗.
 9. Confirm: "`.autodev/deployment.json` is ready. Run `/autodev:new` to capture the
-   first piece of work, or `/autodev:loop` once stories are queued."
+   first piece of work, or `/autodev:loop` once stories are queued. Any time after
+   that: `/autodev:qa <ticket>` for a deep-dive QA pass on a ready-to-test ticket,
+   and `/autodev:repro` to turn 'X is broken' into a reproduced, buildable ticket —
+   or just ask in plain English ('can you reproduce this bug?')."

@@ -1,0 +1,24 @@
+{
+  "repo": {
+    "local_path": "/absolute/path/to/client/repo",
+    "_local_path_note": "REQUIRED for report.mjs and the 24/7 timer scripts (devloop-tick.sh/watchdog.sh read the repo path from their own CLI argument, not from here — but report.mjs and doctor.sh's repo.local_path cross-check use this). /autodev:init detects this via `git rev-parse --show-toplevel` and writes it for you."
+  },
+  "runner": {
+    "home_dir": "~/autodev",
+    "heartbeat_file": "~/autodev/heartbeat",
+    "rate_limited_file": "~/autodev/rate-limited-until",
+    "logs_dir": "~/autodev/logs",
+    "_note": "Per-machine paths for the 24/7 timer (ops/launchd-timer.md). Defaults are already home-relative (~) so they resolve correctly on any machine without editing — only override if you want the timer's state somewhere else."
+  },
+  "tracker": {
+    "instance_label": "",
+    "_instance_label_note": "Optional. Overrides tracker.instance_label from deployment.json for THIS machine/operator only — e.g. running two autoDev instances against the same shared board from different runners. Leave empty to use the project default in deployment.json.",
+    "linear": {
+      "api_token_file": ""
+    },
+    "shortcut": {
+      "api_token_file": ""
+    },
+    "_token_file_note": "Optional. Overrides the default ~/.config/autodev/<client_name>.<tracker>.token convention with an explicit path. Leave empty to use the default."
+  }
+}

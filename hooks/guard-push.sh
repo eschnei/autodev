@@ -9,7 +9,10 @@
 # PRESENT but malformed config fails CLOSED (denies) instead, since silently
 # allowing a push because the guard couldn't read its own rules would defeat the
 # guard's purpose. Only guards pushes made through Claude Code — a human's own
-# terminal is never affected (there is no hook installed outside this plugin).
+# terminal is never affected (there is no hook installed outside this plugin). Also
+# fails open unless THIS session has actually run an autoDev command — see
+# session-mark.sh; a human's own `git push` alongside a configured-but-unused autoDev
+# is not this guard's business.
 set -uo pipefail
 
 INPUT=$(cat)
@@ -17,6 +20,10 @@ TOOL=$(echo "$INPUT" | jq -r '.tool_name // empty')
 [[ "$TOOL" == "Bash" ]] || exit 0
 CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 echo "$CMD" | grep -qE '(^|;|&&|\|)\s*git\s+push\b' || exit 0
+
+SID=$(echo "$INPUT" | jq -r '.session_id // empty')
+SAFE_SID=$(echo "$SID" | tr -cd 'A-Za-z0-9_-')
+[[ -n "$SAFE_SID" && -f "${TMPDIR:-/tmp}/autodev-sessions/$SAFE_SID" ]] || exit 0
 
 CWD=$(echo "$INPUT" | jq -r '.cwd // "."')
 CONFIG="$CWD/.autodev/deployment.json"

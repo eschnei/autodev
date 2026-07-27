@@ -15,6 +15,15 @@ fails to parse as JSON, **stop and tell the operator** — point at the exact pa
 error and the file path; do not run init over it (that would silently overwrite
 whatever they were mid-editing). Only a missing file triggers the automatic bootstrap.
 
+If `repo.local_path` or any `runner.*` field is still inline in `.autodev/deployment.json`
+(pre-split config — `${CLAUDE_PLUGIN_ROOT}/scripts/doctor.sh` flags this with a `!`), and
+this is an **interactive** invocation (not the headless timer), ask the operator once:
+*"Your config still has some machine-specific settings (repo path, runner paths) inline
+in the committed `deployment.json` — want me to run `/autodev:init` to split them into
+`.autodev/deployment.local.json` (gitignored) before continuing?"* Proceed either way —
+this never blocks the pass. Headless/timer invocations skip the ask entirely (the
+fallback keeps working unattended) and rely on `doctor.sh` having already surfaced it.
+
 **First, read the operating manual** at `${CLAUDE_PLUGIN_ROOT}/reference/manual.md` —
 it is authoritative for the workflow (not auto-loaded, so read it explicitly here).
 Also read `.autodev/conventions.md` if present — generate it first via

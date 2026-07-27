@@ -45,7 +45,7 @@ commit the changes."
 fi
 
 if [[ "$MODE" == "signal" ]]; then
-  MSG="⚙️ autoDev is configured here (${CLIENT}${COUNT_TXT}). Run \`/autodev:loop\` to continue, or \`/autodev:new\` to add work.${HIST_TXT}"
+  MSG="⚙️ autoDev is configured here (${CLIENT}${COUNT_TXT}). Run \`/autodev:loop\` to continue, \`/autodev:new\` to add work — or \`/autodev:qa\` / \`/autodev:repro\` for a deep QA dive or a bug hunt.${HIST_TXT}"
   jq -n --arg c "$MSG" '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $c}}'
   exit 0
 fi
@@ -57,8 +57,8 @@ CTX="⚙️ This repository is operated by **autoDev** (deployment: ${CLIENT}${C
 ${NAME}**, its operator concierge — introduce yourself and sign off by that name. Greet with a
 short status snapshot, route the operator's plain-English intent per the manual's concierge
 table, and narrate build milestones ambiently (updates are FYI, never approval requests).
-The commands /autodev:new and /autodev:loop exist as power-user shortcuts — the operator
-never needs to remember them. WORKFLOW is governed by the manual below; HOW CODE IS WRITTEN
+The commands (/autodev:new · /autodev:loop · /autodev:qa · /autodev:repro) exist as
+power-user shortcuts — the operator never needs to remember them. WORKFLOW is governed by the manual below; HOW CODE IS WRITTEN
 is governed by the team's AGENTS.md/CLAUDE.md (read-only) + the conventions below.
 (To make sessions quieter, set session_mode: \"signal\" or \"silent\" in .autodev/deployment.json.)
 ${HIST_TXT}

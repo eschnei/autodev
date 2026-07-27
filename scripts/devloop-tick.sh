@@ -14,8 +14,10 @@ set -uo pipefail
 REPO="${1:?usage: devloop-tick.sh <repo-path>}"
 CONFIG="$REPO/.autodev/deployment.json"
 [[ -f "$CONFIG" ]] || { echo "devloop-tick: no $CONFIG" >&2; exit 1; }
+source "$(dirname "$0")/lib/config.sh" || { echo "devloop-tick: missing lib/config.sh next to $0" >&2; exit 1; }
+autodev_resolve_config "$REPO"
 
-RUN_HOME="$(jq -r '.runner.home_dir // "~/.autodev"' "$CONFIG")"
+RUN_HOME="$(autodev_cfg_get runner.home_dir "~/.autodev")"
 RUN_HOME="${RUN_HOME/#\~/$HOME}"
 mkdir -p "$RUN_HOME/logs"
 
@@ -67,8 +69,17 @@ add "Bash(git push origin ${FEATURE_PREFIX}*)"
 add "Bash(git push origin ${STORY_PREFIX}/*)"
 add "Bash(git push ${BACKUP_REMOTE} ${FEATURE_PREFIX}*)"
 add "Bash(gh pr create:*)"; add "Bash(gh pr view:*)"; add "Bash(gh pr comment:*)"
-add "Bash(gh pr checks:*)"; add "Bash(gh pr merge:*)"
-add "Bash(node *)"; add "Bash(jq *)"
+add "Bash(gh pr checks:*)"
+# NO gh PR-merge grant — only humans merge (manual.md non-negotiable 3): story→feature
+# is a local `git merge --squash` (allowed above); the feature PR is merged by a human.
+# node is scoped to the engine's own board helper, never bare `node` (`node -e` = arbitrary
+# exec). Entries are literal prefix matches on the command string, so cover both spellings
+# the agent docs use (unquoted + quoted); the vendored installer rewrites
+# ${CLAUDE_PLUGIN_ROOT} here and in those docs identically, keeping them in sync. Drivers
+# (linear.mjs/shortcut.mjs) are child processes OF tracker.mjs, not Bash tool calls — no
+# entry needed; report.mjs and every jq below run in THIS wrapper, outside the session.
+add 'Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/tracker.mjs *)'
+add 'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/tracker.mjs" *)'
 add "mcp__linear__*"; add "mcp__playwright__*"
 
 cd "$REPO" || exit 1

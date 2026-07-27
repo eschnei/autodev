@@ -2,10 +2,11 @@
 // autoDev — tracker facade. THE entry point for all board operations; the skills call
 // this, never a backend directly. `tracker.kind` in .autodev/deployment.json picks the
 // driver:
-//   linear → delegates every command to linear.mjs (the Linear driver, unchanged)
-//   local  → git-native board: one JSON file per issue under .autodev/board/. No API,
-//            no token, no rate limits; history lives inside each file. Optional
-//            best-effort Linear mirroring via tracker.mirror.linear + `flush-mirror`.
+//   linear   → delegates every command to linear.mjs (the Linear driver, unchanged)
+//   shortcut → delegates every command to shortcut.mjs (Shortcut REST v3; cli intake only)
+//   local    → git-native board: one JSON file per issue under .autodev/board/. No API,
+//              no token, no rate limits; history lives inside each file. Optional
+//              best-effort Linear mirroring via tracker.mirror.linear + `flush-mirror`.
 //
 // Command surface (superset of linear.mjs):
 //   move <ISSUE> <stageKey> [--note "why"]      comment <ISSUE> "<markdown>"
@@ -22,30 +23,20 @@
 import { readFileSync, writeFileSync, renameSync, readdirSync, existsSync, mkdirSync, appendFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { loadConfig } from './lib/config.mjs';
 
 function die(msg) { console.error(`tracker.mjs: ${msg}`); process.exit(1); }
 
-function findConfig() {
-  if (process.env.AUTODEV_CONFIG && existsSync(process.env.AUTODEV_CONFIG)) return process.env.AUTODEV_CONFIG;
-  let d = process.cwd();
-  while (true) {
-    const p = join(d, '.autodev', 'deployment.json');
-    if (existsSync(p)) return p;
-    const up = dirname(d);
-    if (up === d) die('no .autodev/deployment.json found (set $AUTODEV_CONFIG or run inside the repo)');
-    d = up;
-  }
-}
-const CONFIG_PATH = findConfig();
-const cfg = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+const { cfg, configPath: CONFIG_PATH } = loadConfig();
+if (!cfg) die('no .autodev/deployment.json found (set $AUTODEV_CONFIG or run inside the repo)');
 const ROOT = dirname(dirname(CONFIG_PATH));
 const BOARD = join(ROOT, '.autodev', 'board');
 const KIND = cfg.tracker?.kind || 'linear';
 const MIRROR = KIND === 'local' && cfg.tracker?.mirror?.linear === true;
 
-// ---- linear delegation -------------------------------------------------------
-function delegateToLinear(argv) {
-  const r = spawnSync('node', [join(dirname(new URL(import.meta.url).pathname), 'linear.mjs'), ...argv], { stdio: 'inherit' });
+// ---- API-driver delegation (linear.mjs / shortcut.mjs) -------------------------
+function delegateTo(driver, argv) {
+  const r = spawnSync('node', [join(dirname(new URL(import.meta.url).pathname), driver), ...argv], { stdio: 'inherit' });
   process.exit(r.status ?? 1);
 }
 
@@ -278,14 +269,14 @@ const local = {
 const [cmd, ...args] = process.argv.slice(2);
 if (!cmd) die('usage: tracker.mjs <command> … (see header)');
 
-if (KIND === 'linear') {
-  if (cmd === 'flush-mirror') { console.log('tracker.kind=linear — nothing to mirror'); process.exit(0); }
-  if (cmd === 'list' || cmd === 'board') die(`'${cmd}' is local-driver only for now — use the Linear UI`);
-  delegateToLinear([cmd, ...args]);
+if (KIND === 'linear' || KIND === 'shortcut') {
+  if (cmd === 'flush-mirror') { console.log(`tracker.kind=${KIND} — nothing to mirror`); process.exit(0); }
+  if (cmd === 'list' || cmd === 'board') die(`'${cmd}' is local-driver only for now — use the ${KIND === 'linear' ? 'Linear' : 'Shortcut'} UI`);
+  delegateTo(KIND === 'linear' ? 'linear.mjs' : 'shortcut.mjs', [cmd, ...args]);
 } else if (KIND === 'local') {
   const fn = local[cmd];
   if (!fn) die(`unknown command "${cmd}"`);
   try { fn(args); } catch (e) { die(e.message); }
 } else {
-  die(`unknown tracker.kind "${KIND}" (local | linear)`);
+  die(`unknown tracker.kind "${KIND}" (local | linear | shortcut)`);
 }

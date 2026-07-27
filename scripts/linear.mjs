@@ -25,36 +25,24 @@
 
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join } from 'node:path';
+import { loadConfig as loadSharedConfig } from './lib/config.mjs';
 
 const API = 'https://api.linear.app/graphql';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function die(msg) { console.error(`linear.mjs: ${msg}`); process.exit(1); }
 
-function findConfig() {
-  if (process.env.AUTODEV_CONFIG) return process.env.AUTODEV_CONFIG;
-  let dir = process.cwd();
-  for (let i = 0; i < 12; i++) {
-    const p = join(dir, '.autodev', 'deployment.json');
-    try { readFileSync(p); return p; } catch { /* keep walking */ }
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  die('could not find .autodev/deployment.json (set $AUTODEV_CONFIG)');
-}
-
 function loadConfig() {
-  const path = findConfig();
-  try { return JSON.parse(readFileSync(path, 'utf8')); }
-  catch (e) { die(`bad config at ${path}: ${e.message}`); }
+  const { cfg } = loadSharedConfig();
+  if (!cfg) die('could not find .autodev/deployment.json (set $AUTODEV_CONFIG)');
+  return cfg;
 }
 
 function loadToken(cfg) {
   if (process.env.LINEAR_API_TOKEN) return process.env.LINEAR_API_TOKEN.trim();
   const client = cfg.client_name || 'client';
-  const file = join(homedir(), '.config', 'autodev', `${client}.linear.token`);
+  const file = cfg.tracker?.linear?.api_token_file || join(homedir(), '.config', 'autodev', `${client}.linear.token`);
   try { return readFileSync(file, 'utf8').trim(); }
   catch { die(`no token: set $LINEAR_API_TOKEN or create ${file}`); }
 }

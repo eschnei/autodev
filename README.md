@@ -1,275 +1,163 @@
-# autoDev — an autonomous development engine, as a Claude Code plugin
+# autoDev — describe work in plain English; get QA'd, human-reviewed code
 
-autoDev turns an idea into **QA'd, human-reviewable, shipped code** through a
-ticketing board (Linear or a git-native local board), driven by Claude Code —
-mimicking a PM → dev team, made operable by non-technical people. It ships **two
-ways from the same engine** (pick ONE per repo):
-
-- **Plugin (default):** enable it, run `/autodev:init`, done — versioned updates from
-  the marketplace, hooks active on install, zero engine files in your repo.
-- **Vendored (`./install.sh <repo>`):** the same engine copied into the repo at
-  `.autodev/engine/` — auditable and pinned in *your* git history, for teams that
-  can't or won't run a third-party plugin. Commands become `/autodev-init` ·
-  `/autodev-new` · `/autodev-loop`; switching to the plugin later is automatic
-  (`/autodev:init` migrates vendored installs).
+A [Claude Code](https://claude.com/claude-code) plugin that runs a PM → dev → QA
+pipeline on your repo. You describe the work; it writes the spec, builds it ticket by
+ticket on a board you can watch, and QA's its own work with fresh agents. **You stay
+in charge at exactly two moments:** you approve the plan before anything is built
+(Gate 1), and you approve the result before anything ships (Gate 2). Only humans
+merge — and nothing advances until you run the next `/autodev:loop`.
 
 > **Validated end-to-end** in a sandbox (a 15-story landing page built autonomously,
-> 144 unit + 24 e2e green) **and hardened by a 20-hour autonomous production run** —
-> the gaps that surfaced are folded back in (see [`BACKLOG.md`](./BACKLOG.md)).
->
-> **Open source (Apache-2.0).** Free to self-host. **Managed hosting + onboarding
-> available** — see [Managed service](#managed-service).
+> 144 unit + 24 e2e tests green) and **hardened by a 20-hour autonomous production
+> run** ([`BACKLOG.md`](./BACKLOG.md)). Apache-2.0, free to self-host —
+> [managed service](#managed-service) available.
 
-## What you get
+## Install
 
-autoDev ships as a **Claude Code plugin** — nothing is copied into your repo.
-Enabling it adds three commands and a couple of guardrail hooks; everything else
-(the engine manual, the per-stage playbooks, the scripts) lives inside the plugin
-package and is read at runtime via `${CLAUDE_PLUGIN_ROOT}`.
-
-```
-autodev/                              (the plugin package)
-├── .claude-plugin/plugin.json        # plugin manifest
-├── commands/
-│   ├── init.md                       # /autodev:init  — guided one-time setup, writes .autodev/deployment.json
-│   ├── new.md                        # /autodev:new   — the only way work enters the engine
-│   └── loop.md                       # /autodev:loop  — advance one bounded step (PRD → breakdown → dev/QA → merge-verify)
-├── reference/                        # playbooks — read explicitly by the commands above; never auto-triggered
-│   ├── manual.md                     # engine manual: concierge routing, non-negotiables, toggles
-│   ├── intake.md · prd.md · breakdown.md · devloop.md · merge-verify.md · story-template.md
-│   └── deployment.example.json       # the full config schema, used by /autodev:init
-├── scripts/                          # tracker.mjs · linear.mjs · report.mjs · doctor.sh · detect-conventions.sh ·
-│                                      # check-docs.sh · devloop-tick.sh · watchdog.sh · notify.sh ·
-│                                      # write-identity-pointer.sh
-├── hooks/hooks.json                  # a one-line SessionStart signal + two PreToolUse guardrails (push, docs) — no settings.json write, ever
-├── ops/{linear-setup.md, launchd-timer.md, launchd.plist.template}
-├── BACKLOG.md
-└── docs/
-```
-
-In a client repo, the **entire footprint** is `.autodev/deployment.json` plus
-runtime state created lazily on first use (`.autodev/board/`, `conventions.md`,
-`metrics.jsonl`, `logs/`). Nothing under `.claude/` is ever written.
-
-## Onboarding
-
-**Prerequisites:** Claude Code with a claude.ai subscription login, plus `git`, `node`
-(18+), and `jq` on PATH (the tracker/doctor scripts use them).
-
-**1 · Enable the plugin — once per machine:**
+In Claude Code, once per machine:
 
 ```
 /plugin marketplace add eschnei/autodev
 /plugin install autodev@autodev-marketplace
 ```
 
-Installing is the consent step — the plugin's hooks (session identity, push/docs
-guards) are active immediately, in every repo, with no per-workspace trust dance.
+## Quickstart
 
-**2 · Set up a repo:**
+You need `git`, `node` 18+, `jq` — plus `gh` and a GitHub remote for the default
+draft-PR delivery (no GitHub? pick `review.delivery: local_diff` at setup and skip
+both). Don't audit the list by hand: setup ends with a preflight that verifies every
+tool and prints the fix for anything missing.
 
-```
-/autodev:init      # guided: detects branch/commands from the repo, asks ~5 questions
-                   # (incl. hands-on vs autopilot, concierge vs quiet sessions),
-                   # defaults to the zero-setup LOCAL board, writes .autodev/deployment.json
-/autodev:new       # capture the first piece of work
-/autodev:loop      # advance it — re-run any time; nothing runs between calls unless you
-                   # wire the 24/7 timer (ops/launchd-timer.md)
-```
+1. **In Claude Code, in the repo you want it to work on:** `/autodev:init` — guided
+   setup, roughly a dozen questions, Enter accepts the defaults. Start **hands-on**;
+   the default local board needs zero setup.
+2. `/autodev:new` — describe the feature like you'd brief a colleague: *"I want a
+   waitlist page for the beta."*
+3. `/autodev:loop` — each call advances one step. **The first loop drafts the spec
+   (a PRD) and stops, waiting for you** — the summary appears right in the chat;
+   type **"approved"** (or say what to change). Keep looping: spec → breakdown →
+   one to three calls per ticket (a small feature ≈ a dozen calls). Watch anytime:
+   ask *"what's the status?"* or open `.autodev/board.html` (re-ask to refresh it).
+4. **Review the result (Gate 2) — you never need to read the code.** Each finished
+   ticket arrives as a GitHub *draft* PR with QA reports and a **manual test
+   script**; the assembled feature is **launched for you** (preview on by default):
+   a URL plus a do-X-expect-Y checklist. Judge it like a customer, then mark the PR
+   **"Ready for review"** and **Merge**.
 
-With the default `session_mode: concierge`, your next session simply opens with the
-assistant (Marj) greeting you with a status snapshot — from there it's plain English:
-"here's the PRD", "what's the status?", "grab AD-12". The commands are shortcuts, not
-requirements. `.autodev/deployment.json` is the entire per-repo footprint — commit it
-so the deployment travels with the repo. BrainGrid, Linear, and branch-protection
-wiring remain manual, auth-bound steps — `/autodev:init` prints exactly what's left.
+From then on, plain English drives everything — a configured repo greets you by name
+(the assistant is **Marj**; rename her in config) with a status snapshot; the slash
+commands remain as shortcuts.
 
-**Teammates:** anyone who pulls a configured repo just enables the plugin the same way
-(step 1) — the repo's `.autodev/deployment.json` does the rest. To get build updates on
-your phone, run `/remote-control` and pair the Claude mobile app (enable push in `/config`).
+**Pace and cost:** nothing runs between your `/autodev:loop` calls — no daemon —
+unless you wire the optional 24/7 timer (`ops/launchd-timer.md`). It runs on your
+existing Claude subscription (no API key); a feature is many agent-hours, so expect
+meaningful quota use. You control the burn by how often you run the loop.
 
-**No-plugin alternative (vendored):** `./install.sh /path/to/repo` copies this same
-engine into the repo at `.autodev/engine/` — auditable and version-pinned in *your*
-git history; commands become `/autodev-init` · `/autodev-new` · `/autodev-loop`.
-Pick **one mode per repo** (the installer and the plugin each refuse to double up).
+## What it never does
 
-## Updating
+- **Repos you never configure: nothing.** The hooks check for
+  `.autodev/deployment.json` and exit silently. One exception, by design: in any
+  repo, *Claude Code* is blocked from editing `AGENTS.md`/`CLAUDE.md` — your own
+  editor and terminal are never touched.
+- **Your terminal is never guarded** — the push guard only inspects pushes Claude
+  Code itself makes, and only in configured repos.
+- **Only humans merge to your default branch.** The engine pushes feature/story
+  branches and opens *draft* PRs; `local_diff` mode blocks all pushing.
+- **No telemetry.** Network calls happen only for tools you configure (GitHub,
+  Linear, Slack, BrainGrid) plus one consent-gated persona download from a pinned
+  ref — [details](docs/guarantees.md#agent-roster-agency-agents);
+  `personas.auto_install: false` turns it off.
+- **QA never touches production** — hermetic overrides on every run; the preflight
+  fails when prod endpoints are present and the overrides are off.
+- **Tiny footprint:** `.autodev/deployment.json` (commit it) plus
+  `.autodev/deployment.local.json` (never committed — per-machine paths only),
+  runtime state under `.autodev/`, and a small identity pointer at
+  `.claude/CLAUDE.md` that never overwrites a team-authored file. Never
+  `.claude/settings.json`, never git config.
 
-**Plugin installs:** updates come from the marketplace — open `/plugin` → Manage
-plugins → update `autodev` (or turn on auto-update for the marketplace). New engine
-behavior applies to every configured repo on its next session; per-repo config is
-never touched by a plugin update.
+## How it works
 
-**A repo with autoDev history (pre-plugin install, or an old config):** enabling the
-plugin is the whole upgrade. The first session **detects the history** and updates
-in place — migrates old committed engine files (backed up to
-`.autodev/backup-vendored/`, team files restored), **upgrades the config schema**
-(new keys get defaults; every value you set is preserved), then reports what was
-already in flight (feature branches, board stories) — history continues, it doesn't
-restart. Review + commit the changes it makes. Manual equivalents:
+Every ticket is built by a specialist agent in its own git worktree, must ship tests,
+then is QA'd by **fresh agents that didn't write the code** — three angles (meets the
+criteria · can it be broken · did anything regress), looping dev ↔ QA until green.
+Missing or ambiguous info at *any* stage → it asks you (or parks the ticket as
+Blocked), never guesses. After merges, a clean-room verify rebuilds from scratch and
+auto-reverts on failure. The board is local by default; Linear and Shortcut are
+optional (`tracker.kind`) — Linear adds a no-terminal mode driven entirely from
+tickets and comments.
 
-```bash
-bash "$PLUGIN_ROOT/scripts/migrate-vendored.sh" .   # old engine files → backup, team files restored
-bash "$PLUGIN_ROOT/scripts/upgrade-config.sh" .     # adds new config keys; your values win; prints what it added
-```
+- **`/autodev:qa <ticket>`** — deep exploratory QA: posts a test plan, walks every
+  path hermetically with screenshots, and writes an evidence-backed report that a
+  second, fresh agent audits adversarially and countersigns.
+- **`/autodev:repro`** — turns "X is broken" into a reproduced ticket plus a failing
+  repro test, verified by a cold reader; attempt-capped (default 7), then it
+  **stops** and posts what it tried.
 
-**Vendored installs:** re-run `./install.sh /path/to/repo` from a current engine
-checkout — it upgrades `.autodev/engine/` in place (idempotent; your settings-file
-entries and config are preserved) and re-stamps the version so `doctor` can flag
-staleness. Switching a vendored repo to the plugin later: enable the plugin and let
-the first session migrate it, exactly as above.
+Both feed the human gates, never replace them.
 
-## The non-negotiables
+## Dependencies
 
-- **How much autoDev greets you is a toggle (`session_mode`) — and it stays in its own
-  files.** In a configured repo, **`concierge` (default)** gives you the full assistant:
-  it greets by name (Marj, unless renamed) with a status snapshot, routes plain English —
-  *you never need to remember a command* — and narrates builds ambiently. **`signal`**
-  keeps the engine dormant behind a one-line pointer until `/autodev:new` /
-  `/autodev:loop` (right for dual-use repos); **`silent`** says nothing. Unconfigured
-  repos always get nothing. Either way the engine manual lives in the plugin's
-  **`reference/manual.md`** (never your `CLAUDE.md`), and **your `AGENTS.md` /
-  `CLAUDE.md` stay the authority on coding conventions** — autoDev reads and obeys them,
-  and a `PreToolUse` hook denies any Edit/Write to them; a convention change comes as a
-  separate PR with rationale, never a silent in-place edit.
-- **The board is the only state machine** — every transition is a live status move
-  (`tracker.mjs move …`); cards flow through every column so non-technical operators
-  watch work progress in real time. A per-tick reconcile self-heals dropped moves.
-  **Where the board lives is a toggle** (`tracker.kind`): a **git-native local board**
-  (zero setup, no tokens, no rate limits, optional async Linear mirror) or Linear live.
-- **Two human gates** — PRD approval (Gate 1), story/feature review (Gate 2) — and
-  **only humans merge to the default branch** (branch protection, not trust).
-- **Autopilot mode (the PM handoff):** hand over a PRD → get ONE approval package
-  (≤10-line summary + only the gaps that matter) → approve → tickets build themselves
-  and **parallel lanes execute with no mid-build questions** (only genuine Blocks
-  interrupt) → you're called back once, at acceptance, with the **server already
-  running + a to-the-point test checklist** (do X → at URL → expect Y). Set
-  `review.granularity: per_feature` + `auto_merge_to_feature_branch: true`, or pick
-  "autopilot" in `/autodev:init`. Progress updates stay ambient — and to get
-  them **on your phone**, run `/remote-control` in Claude Code and pair the Claude
-  mobile app (enable push in `/config` to get pinged when the build lands or needs you).
-- **Tests ship with every change; QA runs for real** — three angles (conformance ·
-  adversarial · regression), hidden adversarial tests, on an executable env. The
-  **live-browser check is advisory**, never an auto-block.
-- **dev↔QA loops until it passes** — QA fail → back to dev → retry, *unbounded while
-  making progress*; a **stuck-detector** escalates to a human only on no-progress
-  (= "ask, don't invent").
-- **Post-merge clean-room verify + whole-feature acceptance** — fresh checkout +
-  clean install + integrated suites + live smoke after every merge (auto-revert on
-  fail) → acceptance report → **human prod sign-off**. Kills "worked on my local."
-- **Hermetic always (safety)** — every test/build/app/live run applies
-  `qa.hermetic` overrides; the engine **never** drives QA or the live app against
-  production services/creds, and `doctor` fails on prod endpoints in `.env`.
-- **Feature-vs-bug gate** at intake — `intake.bugs`: `triage` (default — flagged for a
-  human, not built) or `pipeline` (**repro-test-first**: intake demands a reproduction,
-  the dev agent commits a failing repro test before fixing, QA verifies red → green).
-- **Preview at acceptance** (`preview.enabled`) — the human signs off on a **running
-  product** (assembled feature branch launched hermetically + relaunch one-liner posted
-  on the ticket), not just a diff and a report.
-- **Backlog drain (`backlog.enabled`, opt-in)** — when nothing else is in flight, the
-  engine can chew through the team's existing backlog/bug pile: you approve a **batch**
-  at an entry gate, then each ticket gets explore-the-code → a **context brief with
-  derived, testable criteria posted on the ticket** (the PRD substitute — vetoable
-  before a line is written) → build (bugs repro-test-first) → full QA → **its own PR**
-  for human review. Unfit tickets are commented + skipped, never guessed at; real
-  feature work always preempts; the team's priority order is never re-ranked.
-- **Glass-box observability** — status moves + per-tick comment logging + an
-  operator digest + a per-feature stats record (`.autodev/metrics.jsonl`).
-- **Stateless heartbeat** passes · rate-limit auto-pause/resume · dead-man watchdog
-  (with hung-tick recovery).
+| Dependency | Needed for | If missing |
+|---|---|---|
+| [Claude Code](https://claude.com/claude-code) (subscription login) + `git` · `node` 18+ · `jq` | the engine itself | setup's preflight (`doctor`) flags it with the fix |
+| `gh` + a GitHub remote | default draft-PR delivery | set `review.delivery: local_diff` — fully local |
+| [agency-agents](https://github.com/msitarzewski/agency-agents) personas (MIT) | specialist dev/QA agents | auto-installed on demand from a pinned ref (`personas.auto_install`); otherwise runs on the built-in fallback agent |
+| Playwright (MCP) | screenshots for live/visual QA and bug repro | `/autodev:qa` / `/autodev:repro` offer to install it (with your consent); visual checks flag instead of block |
+| [BrainGrid CLI](https://braingrid.ai) | spec authoring | agents author the PRD/breakdown instead — nothing breaks |
+| Linear or Shortcut | `tracker.kind: linear` / `shortcut` | the zero-setup local board (default) |
 
 ## Toggles (preferred-optional, degrade gracefully)
 
 | Toggle | Options | Default |
 |---|---|---|
-| `tracker.kind` | `local` (git-native board — zero setup, no tokens/rate limits, `tracker.mjs board` view) **or** `linear` (the board is Linear, live) | `linear` (existing) · `local` recommended for new |
-| `tracker.mirror.linear` | local mode: also mirror to Linear async (queued + coalesced, off the critical path) | `false` |
-| `braingrid.enabled` | BrainGrid spec authoring **or** agent (PM + PjM) fallback | `true` |
-| `session_mode` | `concierge` (full Marj at session start — plain English, no commands) · `signal` (one-line pointer, dormant until invoked) · `silent` | `concierge` |
-| `intake.mode` | `cli` (in-session) **or** `linear` (ticket + comments, no terminal) | `cli` |
-| `intake.bugs` | `triage` (flag for a human) **or** `pipeline` (repro-test-first bug fixing) | `triage` |
-| `preview.enabled` | launch the assembled feature at the acceptance gate + post URL/relaunch cmd | `true` |
-| `backlog.enabled` | **backlog drain**: work the team's existing ticket pile during idle time — entry-gate approval per batch (`backlog.batch`), context-brief-instead-of-PRD per ticket, own PR each, Gate 2 never waived | `false` |
-| `tracker.hierarchy` | `issue` (feature on the board) **or** `project` (feature-as-Project, org-wide statuses) | `issue` |
-| `review.granularity` | `per_story` (review each) **or** `per_feature` (auto-merge to branch; review the whole) | `per_story` |
-| `review.delivery` | `draft_pr` (push + GitHub PRs) **or** `local_diff` (no GitHub — local branches + diffs only) | `draft_pr` |
-| `review.quality_review` | leanness/dedup pass over the assembled feature diff at close-out | `true` |
-| `backup.enabled` | WIP durability — push the feature branch to `backup.remote` on creation + after every story merge (not a PR; `draft_pr` only, no-op under `local_diff`) | `true` |
-| `execution.logging` | `quiet` (status only) · `normal` (checkpoint comments) · `verbose` (+ diffs) | `normal` |
-| `execution.incremental_breakdown` | break down the whole feature at Gate 1 **or** per-milestone on demand | `false` |
+| `tracker.kind` | `local` (git-native board — zero setup, no tokens, `tracker.mjs board` view) · `linear` (the board is Linear, live) · `shortcut` (the board is Shortcut, live; cli intake) | `local` for new setups (init's default) |
+| `tracker.mirror.linear` | local mode: also mirror to Linear async (queued, off the critical path) | `false` |
+| `braingrid.enabled` | BrainGrid spec authoring **or** agent (PM + PjM) fallback | `true` (auto-falls-back if absent) |
+| `session_mode` | `concierge` (Marj greets, plain English drives) · `signal` (one-line pointer, dormant until invoked) · `silent` | `concierge` |
+| `intake.mode` | `cli` (in-session) **or** `linear` (tickets + comments, no terminal) | `cli` |
+| `intake.bugs` | `triage` (flag for a human) **or** `pipeline` (repro-test-first fixing) | `triage` |
+| `preview.enabled` | launch the assembled feature at acceptance + post URL/relaunch cmd | `true` |
+| `backlog.enabled` | idle-time backlog drain (entry-gated batches, own PR each) | `false` |
+| `tracker.hierarchy` | `issue` (feature as a board issue) **or** `project` (feature as a Linear Project) | `issue` |
+| `review.granularity` | `per_story` (review each ticket) **or** `per_feature` (auto-merge to the feature branch; review the whole) | `per_story` |
+| `review.delivery` | `draft_pr` (push + GitHub draft PRs) **or** `local_diff` (no GitHub — local branches + diffs, pushes blocked) | `draft_pr` |
+| `review.quality_review` | leanness/dedup pass over the assembled feature at close-out | `true` |
+| `backup.enabled` | WIP durability — push the feature branch to `backup.remote` after each story merge (never a PR; no-op under `local_diff`) | `true` |
+| `personas.auto_install` | download missing specialist personas on demand (pinned ref) **or** run everything as the fallback agent | `true` |
+| `execution.logging` | `quiet` (one line per action) · `normal` (checkpoint comments) · `verbose` (+ diffs) | `normal` |
+| `execution.incremental_breakdown` | whole feature at Gate 1 **or** per-milestone on demand | `false` |
 | `reporting.cadence` | operator digest: `off` · `hourly` · `<N>m` → log / slack / linear | `off` |
 
-## BrainGrid CLI + Claude Code (optional spec tool)
+## Docs
 
-BrainGrid is the **preferred** spec tool (`braingrid.enabled: true`) — it authors the
-PRD (`/specify`) and breakdown directly inside Claude Code. It's **optional**: with
-no BrainGrid, the engine falls back to the product-manager + project-manager-senior
-personas. To wire it up (needs Node 18+):
-
-```bash
-# 1. Install the CLI
-npm install -g @braingrid/cli
-
-# 2. Authenticate (opens a browser)
-braingrid login
-
-# 3. Install the Claude Code integration — adds the /specify, /breakdown, /build
-#    slash commands to Claude Code (run --force to overwrite existing files)
-braingrid setup claude-code
-
-# 4. In the TARGET repo: create/link a BrainGrid project
-cd /path/to/target-repo && braingrid init
-#    (non-interactive: braingrid project create --name "<Name>" --repository owner/repo,
-#     then braingrid init --project <id>)
-
-# 5. Verify
-braingrid status        # shows auth + the linked project
-```
-
-Then set `braingrid.enabled: true` and `braingrid.project_short_id` in the deployment
-config. (`braingrid setup cursor` / `openclaw` exist too, but autoDev uses Claude Code.)
-
-## Agent roster (agency-agents)
-
-The engine routes work to specialist personas from **[agency-agents](https://github.com/msitarzewski/agency-agents)**
-by [@msitarzewski](https://github.com/msitarzewski) (MIT). autoDev does **not** bundle
-them — install them into `~/.claude/agents/` from that repo; routing lives in
-`.autodev/deployment.json` (`personas.*`):
-
-| Role | Persona |
-|---|---|
-| PRD · Breakdown | product-manager · project-manager-senior |
-| Dev (routed by files) | backend-architect · frontend-developer · database-optimizer · architect-ux / ui-designer |
-| QA — conformance · adversarial · regression/verdict | code-reviewer · test-results-analyzer · evidence-collector · application-security-engineer · api-tester · **reality-checker** |
-| QA — visual/UI (conditional, UI-heavy stories) | evidence-collector · **ui-designer** · **architect-ux** (design fidelity · theme adherence · responsive · visual a11y; advisory) |
+- [`docs/setup.md`](docs/setup.md) — the preflight (doctor), teammates, Linear /
+  BrainGrid / branch protection, plugin vs vendored, updating.
+- [`docs/faq.md`](docs/faq.md) — cost, undo, GitHub-or-not, "do I need to read
+  code?", team use, and more.
+- [`docs/guarantees.md`](docs/guarantees.md) — the non-negotiables and the agent
+  roster.
+- `reference/manual.md` — the operating manual the engine itself follows.
 
 ## Status
 
-**v1 — complete, validated, and hardened by a real run.** Proven end-to-end in a
-sandbox (full feature build + dev↔QA loop), then run **20 hours autonomously on a
-production codebase** — every gap that surfaced is folded back in ([`BACKLOG.md`](./BACKLOG.md)):
-hermetic safety, acceptance QA, leanness review, operator digest, per-feature metrics,
-hung-tick recovery, a self-sufficient Linear helper, and more. Next: deploy onto a
-dedicated always-on machine and enable the 24/7 timer.
+**v2 (2.1.0)** — sandbox-validated, then hardened by a 20-hour autonomous production
+run; every gap folded back in ([`BACKLOG.md`](./BACKLOG.md)). Recent: the autoQA
+commands (`/autodev:qa`, `/autodev:repro`) and on-demand persona install.
 
 ## Managed service
 
-autoDev is **free to self-host** under Apache-2.0. If you'd rather not run it
-yourself, **managed hosting + onboarding** (we install it into your repo, wire up
-Linear + GitHub + CI, and operate the engine for you) is available as a paid
-service — reach out to the maintainer.
+Free to self-host (Apache-2.0). Prefer not to run it yourself? **Managed hosting +
+onboarding** — we install, wire up Linear + GitHub + CI, and operate the engine for
+you — is available as a paid service; reach out to the maintainer.
 
 ## Credits
 
 - **[agency-agents](https://github.com/msitarzewski/agency-agents)** by
-  [@msitarzewski](https://github.com/msitarzewski) — the specialist persona library
-  the engine routes to (**MIT**). Installed by the operator; not redistributed here.
-- Built to run on **[Linear](https://linear.app)** (board + state),
-  **[BrainGrid](https://braingrid.ai)** (spec authoring, optional), and
-  **[Claude Code](https://claude.com/claude-code)**.
+  [@msitarzewski](https://github.com/msitarzewski) (MIT) — the specialist persona
+  library, fetched on demand at a pinned ref; not redistributed here.
+- Built to run on **[Claude Code](https://claude.com/claude-code)**, with optional
+  **[Linear](https://linear.app)** and **[BrainGrid](https://braingrid.ai)**.
 
 ## License
 
-autoDev is licensed under **[Apache-2.0](./LICENSE)** — free to use, modify, and
-self-host. Third-party components keep their own licenses (agency-agents is MIT;
-see above).
+**[Apache-2.0](./LICENSE)**. Third-party components keep their own licenses.
