@@ -34,5 +34,5 @@ jobs:
           jq -e . hooks/hooks.json >/dev/null
           echo "JSON valid"
 
-      - name: Smoke test (install into synthetic client repo)
-        run: bash tests/smoke.sh
+      - name: Regression suite (smoke + tests/suite/*.sh, hermetic)
+        run: bash tests/run.sh

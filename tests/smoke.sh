@@ -3,15 +3,10 @@
 # synthetic client repo, asserting the contracts that have bitten us in real
 # deployments. No Claude invocation (the commands themselves are prose, interpreted
 # by Claude at runtime — not something a shell script can drive). Run: tests/smoke.sh
-set -uo pipefail
-PLUGIN="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FAIL=0
-pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
-fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; FAIL=1; }
-check() { # <desc> <cmd...>
-  local d="$1"; shift
-  if "$@" >/dev/null 2>&1; then pass "$d"; else fail "$d"; fi
-}
+# Hermetic: tests/lib.sh redirects $HOME and stubs claude/gh/launchctl/osascript so
+# nothing on the developer's machine (an enabled autodev plugin, ~/.config/autodev)
+# can change a result. It also provides PLUGIN, pass/fail/check.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 # ---- synthetic client repo: team docs + foreign settings + a pre-existing git hook + MUI/codegen ----
 TGT=$(mktemp -d); trap 'rm -rf "$TGT"' EXIT
