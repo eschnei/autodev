@@ -26,7 +26,8 @@ log() { echo "$(ts) [$KIND] $*" >> "$LOG"; }
 
 case "$KIND" in
   limited)
-    if [[ -n "${3:-}" ]] && when=$(date -r "$3" "+%H:%M" 2>/dev/null); then
+    # BSD date takes an epoch via -r; GNU date needs -d @epoch (its -r means "file mtime")
+    if [[ -n "${3:-}" ]] && when=$(date -r "$3" "+%H:%M" 2>/dev/null || date -d "@$3" "+%H:%M" 2>/dev/null); then
       TITLE="⏳ autoDev rate-limited (reset ~${when}) — probing every tick; resumes within one tick of the limit lifting."
     else
       TITLE="⏳ autoDev rate-limited — probing every tick; resumes within one tick of the limit lifting."
