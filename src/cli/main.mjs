@@ -28,6 +28,7 @@ import { readWorkflowState, nextAction, describeState } from '../core/workflow/s
 import { approve as gateApprove, reject as gateReject, jobFor, GateError } from '../core/workflow/gates.mjs';
 import { brainStatus, describeBrain, ensureBrainProject, contextForJob, recordHandoff, recordGateDecision } from '../brain/index.mjs';
 import { StateRepo, StateError } from '../core/state.mjs';
+import { plan as migratePlan, apply as migrateApply, renderReport } from '../migrate/index.mjs';
 import { defaults as schemaDefaults, validate as validateConfig } from '../core/config/schema.mjs';
 import { projectDeploymentFile, projectBoardDir, ensureProjectDirs } from '../core/paths.mjs';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -52,6 +53,7 @@ usage: autodev [command] [args]      (no command = interactive shell)
   reject <id> <reason>   record a Gate 2 rejection → back to AI Development with the reason
   next                   what the engine would do next, decided without a model
   init [--name N] [--test cmd] [--brain-url U]   v3 setup: deployment + board in the sidecar; the repo stays untouched
+  migrate [--from claude] [--dry-run] [--import-user]   translate an existing Claude/autoDev project into the sidecar + Brain (non-destructive)
   state [status|remote <url>|sync|takeover|release]   the sidecar state repo (workflow reality) + its private remote
   brain [status|context [REQ]|search <q>|remember <text>]   the Brain connection (optional; degraded mode when unreachable)
   agents [sync|install]  Agency roles + persona resolution; sync = adopt existing
@@ -240,6 +242,19 @@ async function cmdInit(ctx, args) {
   return 0;
 }
 
+// autodev migrate [--from claude] [--dry-run] [--import-user]
+async function cmdMigrate(ctx, args) {
+  if (!ctx.identity) { console.error('autodev: not in a git repository'); return 1; }
+  const f = {}; for (let i = 0; i < args.length; i++) if (args[i].startsWith('--')) { f[args[i].slice(2)] = args[i + 1] && !args[i + 1].startsWith('--') ? args[++i] : true; }
+  if (f.from && f.from !== 'claude') { console.error(`autodev: only --from claude is supported`); return 2; }
+  const p = migratePlan(ctx);
+  if (f['dry-run']) { console.log(renderReport(p)); return 0; }
+  const r = await migrateApply(ctx, p, { brain: ctx.brain, importUser: !!f['import-user'], log: (m) => console.error(m) });
+  console.log(readFileSync(r.report, 'utf8'));
+  console.log(`report: ${r.report}`);
+  return r.sidecar.some((s) => s.valid === false) ? 1 : 0;
+}
+
 async function cmdState(ctx, sub, arg) {
   const st = new StateRepo();
   switch (sub || 'status') {
@@ -317,6 +332,7 @@ async function dispatch(ctx, parts) {
     case 'doctor': return cmdDoctor(ctx.identity?.root || process.cwd());
     case 'agents': return cmdAgents(ctx, rest[0]);
     case 'init': return cmdInit(ctx, rest);
+    case 'migrate': return cmdMigrate(ctx, rest);
     case 'state': return cmdState(ctx, rest[0], rest[1]);
     case 'brain': return cmdBrain(ctx, rest[0], rest.slice(1).join(' ') || undefined);
     case 'tick': return cmdTick(rest[0], (m) => console.log(m));

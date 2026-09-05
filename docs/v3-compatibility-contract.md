@@ -160,3 +160,9 @@ Still prose (owned by later M8 slices): the one-feature lock, PRD/breakdown auth
 | M13 | autoDev: `src/brain/client.mjs` (negotiation, machine-local token, idempotent writes) and `src/brain/index.mjs` (sidecar registration, context in front of every job with bundle id + memory revisions recorded, handoff after every job keyed by job id, gate decisions as human-provenance decisions, DEGRADED mode when unreachable, INCOMPATIBLE never misread) | `tests/suite/brain.sh` against a stub Brain that logs every request |
 
 Brain remains optional: `brain.enabled=false` is exactly v2 behavior (tested: zero Brain requests).
+
+## 8. Package 4 — migration, Codex, the round trip
+
+| Milestone | Where | Mechanical |
+|---|---|---|
+| M14 | `src/migrate/`: discovery + classification of every repo and user-level artifact (portable / adaptable / vendor-specific / legacy, with scope), dry run, sidecar import (normalized deployment keyed by source hash, board copy) + Brain import (rule candidates, conventions, requirements) idempotent by content, report under the sidecar, repo byte-identical, user rules as candidates unless `--import-user` | `tests/suite/migrate.sh` |

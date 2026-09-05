@@ -45,6 +45,7 @@ const server = createServer(async (req, res) => {
   }
   if (req.method === 'POST' && p === '/v1/handoffs') { const h = { id: id('hnd'), created_at: new Date().toISOString(), ...body }; state.handoffs.push(h); return done(201, h); }
   if (req.method === 'GET' && p === '/v1/handoffs/latest') { const h = state.handoffs.at(-1); return h ? send(200, h) : send(404, { error: 'not_found', message: 'handoff not found' }); }
+  if (req.method === 'POST' && p === '/v1/memory') { const scope = body.scope || { type: body.task_id ? 'task' : body.requirement_id ? 'requirement' : 'project', id: body.task_id || body.requirement_id || body.project_id }; const m = { id: id('mem'), revision: 1, scope, state: body.state || 'observation', visibility: body.visibility || 'project', type: body.type || 'note', content: body.content, provenance: body.provenance || [], data: body.data || {} }; state.memories.push(m); return done(201, m); }
   if (req.method === 'POST' && p === '/v1/decisions') { const d = { id: id('mem'), type: 'decision', state: 'verified', ...body }; state.decisions.push(d); return done(201, d); }
   if (req.method === 'GET' && p === '/v1/search') { const q = (url.searchParams.get('q') || '').toLowerCase(); return send(200, state.memories.filter((x) => x.content.toLowerCase().includes(q))); }
   return send(404, { error: 'no_route', message: `no route ${req.method} ${p}` });

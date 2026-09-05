@@ -142,8 +142,9 @@ export function registerProject(cwd = process.cwd(), { name, legacy = null, env 
     created_at: now,
   };
   project.clones = entry.clones;
-  if (legacy?.configPath) {
-    // a v2 deployment: its board stays where it is (repo-local) until migrated (M14)
+  if (legacy?.configPath && !project.migrated) {
+    // a v2 deployment: its board stays where it is (repo-local) until migrated (M14);
+    // once migrated, the sidecar board is authoritative even though the legacy file remains
     project.legacy = { deployment_json: legacy.configPath, client_name: legacy.client_name || null };
     project.tracker = { kind: legacy.tracker?.kind || 'local', location: legacy.tracker?.kind === 'local' || !legacy.tracker?.kind ? join(dirname(legacy.configPath), 'board') : null, mode: 'legacy' };
     if (legacy.repo?.default_branch) project.repository.default_branch = legacy.repo.default_branch;
@@ -174,8 +175,10 @@ export async function resolveProject(cwd = process.cwd(), { env } = {}) {
     }
   }
   const { project, created } = registerProject(identity.root, { legacy, env });
-  // v3-native deployment config lives in the sidecar (autodev init writes it)
-  if (!legacy && existsSync(projectDeploymentFile(project.id, env))) {
+  // v3-native deployment config lives in the sidecar (autodev init writes it); a
+  // MIGRATED project also reads the sidecar copy — the legacy file stays for the plugin path
+  const preferSidecar = (!legacy || (project.migrated && env?.AUTODEV_PREFER_LEGACY !== '1' && process.env.AUTODEV_PREFER_LEGACY !== '1')) && existsSync(projectDeploymentFile(project.id, env));
+  if (preferSidecar) {
     const { loadDeployment } = await import('./config/index.mjs');
     try {
       const r = await loadDeployment(identity.root, { strict: false, configPath: projectDeploymentFile(project.id, env) });

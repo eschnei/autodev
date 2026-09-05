@@ -42,6 +42,15 @@ project up the same way (deployment + board in the sidecar, commands detected
 from `package.json`). Existing `.autodev/deployment.json` deployments are read
 as-is with their repo-local board.
 
+An existing Claude/autoDev project moves over with `autodev migrate --from claude`
+(`--dry-run` first): every artifact — `CLAUDE.md`/`AGENTS.md`, `.claude/`, `.mcp.json`,
+`.autodev/` config and board, `specs/`, git history, and your user-level Claude
+config — is classified portable / adaptable / vendor-specific / legacy and reported;
+the portable ones are imported into the sidecar (normalized deployment, board copy)
+and Brain (rule candidates, conventions, requirements), idempotently. Nothing in the
+repo is modified or deleted; user-level rules become candidates you import
+explicitly (`--import-user`).
+
 Durability and continuity across machines come from a **private** state remote,
 never the application repo and never Brain:
 
