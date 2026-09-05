@@ -34,6 +34,18 @@ export function projectFile(projectId, env) { return join(projectDir(projectId, 
 
 export const PROJECT_SUBDIRS = Object.freeze(['board', 'events', 'locks', 'runtime']);
 
+// The canonical, executor-neutral Agency store (Milestone 6): role overrides and
+// persona definitions. NOT ~/.claude/agents — that directory is one executor's
+// projection of this store (src/executors/claude/agents.mjs).
+//   agents/roles/<role-id>.json     per-machine overrides of the built-in roles
+//   agents/personas/<slug>.md       persona instructions (markdown + frontmatter)
+export function agentsDir(env) { return join(dataRoot(env), 'agents'); }
+export function ensureAgentsDirs(env) {
+  const dir = agentsDir(env);
+  for (const d of ['roles', 'personas']) mkdirSync(join(dir, d), { recursive: true });
+  return dir;
+}
+
 export function ensureProjectDirs(projectId, env) {
   const dir = projectDir(projectId, env);
   for (const d of PROJECT_SUBDIRS) mkdirSync(join(dir, d), { recursive: true });

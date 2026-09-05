@@ -3,7 +3,7 @@
 # Sidecar registration must leave the application repo untouched (G9).
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 CLI="$PLUGIN/bin/autodev.mjs"
-export AUTODEV_HOME="$SANDBOX/autodev-home"
+export AUTODEV_HOME="$SANDBOX/autodev-home-cli"   # per-suite data root (suites share one sandbox)
 VER=$(jq -r .version "$PLUGIN/package.json")
 ad() { node "$CLI" "$@"; }
 

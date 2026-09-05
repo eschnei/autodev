@@ -20,6 +20,10 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { resolveProject, saveProject } from '../core/project.mjs';
 import { Tracker } from '../core/tracker.mjs';
+import { loadRoles } from '../agency/roles.mjs';
+import { PersonaStore, ensurePersonas } from '../agency/personas.mjs';
+import { ensureAgentsDirs } from '../core/paths.mjs';
+import { projectPersonas, claudeAgentsDir } from '../executors/claude/agents.mjs';
 import { headlessAllowlist, assertAllowlistInvariants } from '../core/permissions.mjs';
 import { tick } from '../core/tick.mjs';
 import { makeJob, getExecutor, listExecutors, hasExecutor } from '../executors/executor.mjs';
@@ -37,6 +41,9 @@ usage: autodev [command] [args]      (no command = interactive shell)
   tick <repo>            headless heartbeat for the timer (lock, pause/probe, digest)
   executor [name]        show or set this project's default executor
   approve <id> [note]    record a human gate decision (proxied to the engine in v3.0)
+  agents [sync|install]  Agency roles + persona resolution; sync = adopt existing
+                         ~/.claude/agents personas into the store and project the
+                         store back out; install = fetch missing (consent-gated)
   doctor                 preflight the deployment (scripts/doctor.sh)
   version | help
   <anything else>        natural language, one shot, through the executor
@@ -115,6 +122,34 @@ async function cmdTick(repo, log) {
   }
 }
 
+async function cmdAgents(ctx, sub) {
+  const cfg = ctx.legacy || {};
+  ensureAgentsDirs();
+  const store = new PersonaStore();
+  const target = claudeAgentsDir();
+  if (sub === 'sync') {
+    const imported = store.importFrom(target);
+    const proj = projectPersonas(cfg, store, { targetDir: target });
+    console.log(`agency store: ${store.dir}`);
+    console.log(`adopted from ${target}: ${imported.length ? imported.join(', ') : 'nothing new'}`);
+    console.log(`projected → ${target}: ${proj.written.length} written · ${proj.updated.length} updated · ${proj.kept.length} kept · ${proj.missing.length} missing${proj.missing.length ? ` (${proj.missing.join(', ')})` : ''}`);
+    return 0;
+  }
+  if (sub === 'install') {
+    const r = await ensurePersonas(cfg, { store });
+    for (const x of r.report) console.log(`  ${x.status === 'unresolved' || x.status === 'invalid' ? '✗' : x.status === 'downloaded' ? '⬇' : '✓'} ${x.slug} ${x.status}${x.reason ? ` (${x.reason})` : ''}`);
+    console.log(`personas: ${r.needed} needed · ${r.installed} installed · ${r.downloaded} downloaded · ${r.unresolved} unresolved${r.unresolved ? ` (→ ${r.fallback})` : ''}`);
+    return r.unresolved ? 1 : 0;
+  }
+  const roles = loadRoles({ cfg });
+  console.log(`Agency — ${roles.length} model-neutral roles (store: ${store.dir})`);
+  for (const r of roles) {
+    const res = r.personas.map((p) => `${p}${p === 'general-purpose' ? '' : store.has(p) ? '' : ' (not installed → ' + r.fallback + ')'}`).join(', ');
+    console.log(`  ${r.id.padEnd(16)} ${r.name.padEnd(24)} persona: ${res}${r.overridden ? '  [overridden]' : ''}`);
+  }
+  return 0;
+}
+
 function cmdDoctor(cwd) {
   const r = spawnSync('bash', [join(ROOT, 'scripts', 'doctor.sh')], { cwd, stdio: 'inherit' });
   return r.status ?? 1;
@@ -133,6 +168,7 @@ async function dispatch(ctx, line) {
     case 'continue': case 'loop': return runJob(ctx, '/autodev:loop', 'loop');
     case 'approve': return runJob(ctx, `The operator approved ${rest[0] || 'the pending gate'}${rest.length > 1 ? ` — ${rest.slice(1).join(' ')}` : ''}. Log the gate decision with an audit comment and advance it per the manual; do one bounded unit of work then stop.`, 'gate');
     case 'doctor': return cmdDoctor(ctx.identity?.root || process.cwd());
+    case 'agents': return cmdAgents(ctx, rest[0]);
     case 'tick': return cmdTick(rest[0], (m) => console.log(m));
     default: return runJob(ctx, line.trim(), 'concierge');
   }
