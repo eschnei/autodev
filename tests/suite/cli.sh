@@ -56,10 +56,17 @@ check "no remote: root commit is the fingerprint (stable across runs)" test -n "
 check "not a git repo → status still exits 0 and says so" bash -c "cd '$SANDBOX' && node '$CLI' status | grep -q 'not a git repository'"
 
 echo "cli — executor selection:"
-check_out "executor shows the default + available set" "^claude  \(available: claude\)$" bash -c "cd '$R' && node '$CLI' executor"
-check_out "unknown executor is refused, lists available" 'no executor "codex" registered \(available: claude\)' bash -c "cd '$R' && node '$CLI' executor codex 2>&1; true"
-check "unknown executor exits 1"                 bash -c "cd '$R' && ! node '$CLI' executor codex >/dev/null 2>&1"
+check_out "executor shows the default + available set" "^claude  \(available: claude, codex\)$" bash -c "cd '$R' && node '$CLI' executor"
+check_out "unknown executor is refused, lists available" 'no executor "gemini" registered \(available: claude, codex\)' bash -c "cd '$R' && node '$CLI' executor gemini 2>&1; true"
+check "unknown executor exits 1"                 bash -c "cd '$R' && ! node '$CLI' executor gemini >/dev/null 2>&1"
 check "setting a registered executor persists in project.json" bash -c "cd '$R' && node '$CLI' executor claude >/dev/null && jq -e '.executor.default==\"claude\"' '$AUTODEV_HOME/state/projects/$PID/project.json'"
+
+echo "cli — executor codex (M15):"
+check_out "executor lists codex as available"              "^claude  \(available: claude, codex\)$" bash -c "cd '$R' && node '$CLI' executor"
+(cd "$R" && node "$CLI" executor codex | grep -q "^executor: codex") || echo "executor codex: unexpected output"
+check "executor codex is accepted + persisted"           jq -e '.executor.default=="codex"' "$AUTODEV_HOME/state/projects/$PID/project.json"
+check_out "banner shows the executor"                     "Executor: codex" bash -c "cd '$R' && node '$CLI' status"
+(cd "$R" && node "$CLI" executor claude >/dev/null)
 
 echo "cli — proxying to the v2 engine through the executor seam:"
 L=$(mkrepo CliCo '.commands.test="npm test"'); git -C "$L" add -A >/dev/null; git -C "$L" commit -qm init >/dev/null
@@ -85,12 +92,22 @@ check_out "banner surfaces config errors instead of crashing" "config: 1 error\(
 check_out "tick refuses an invalid config loudly (fail closed)" "review.delivery: must be one of" bash -c "node '$CLI' tick '$BADCFG' 2>&1; true"
 check "legacy deployment recorded on the project (read, never modified)" bash -c "id=\$(cd '$L' && node '$CLI' status | grep -oE 'prj_[0-9A-Z]{26}'); jq -e --arg p '$L/.autodev/deployment.json' '.legacy.deployment_json==\$p and .legacy.client_name==\"CliCo\" and .tracker.kind==\"local\"' \"$AUTODEV_HOME/state/projects/\$id/project.json\""
 
+echo "cli — a job through codex (same seam, different vendor):"
+(cd "$L" && node "$CLI" executor codex >/dev/null)
+: > "$CODEX_STUB_LOG"; : > "$CLAUDE_STUB_LOG"
+check_out "one-shot job runs through codex, returns its summary" "^ok$" bash -c "cd '$L' && node '$CLI' summarize the board"
+check "…codex was invoked with the task, claude was not"  bash -c "grep -q 'PROMPT: .*summarize the board' '$CODEX_STUB_LOG' && ! grep -q . '$CLAUDE_STUB_LOG'"
+check "…prohibitions carried the deployment's default branch" grep -q 'default branch "main"' "$CODEX_STUB_LOG"
+: > "$CODEX_STUB_LOG"
+check "tick through codex: loop job + allowlist-derived sandbox"  bash -c "node '$CLI' tick '$L' 2>'$SANDBOX/tick.err' && grep -q 'PROMPT: .*/autodev:loop' '$CODEX_STUB_LOG' && grep -q 'network_access=true' '$CODEX_STUB_LOG' && grep -q 'cannot enforce the tool allowlist mechanically' '$SANDBOX/tick.err'"
+(cd "$L" && node "$CLI" executor claude >/dev/null)
+
 echo "cli — interactive shell:"
 OUT=$(cd "$L" && printf 'status\nexecutor\nexit\n' | node "$CLI")
 check "shell prints the banner"                     has "autoDev v$VER"
 check "shell runs 'status' (banner twice)"          test "$(count_re 'Project: CliCo')" -eq 2
-check "shell runs 'executor'"                       has 'claude  (available: claude)'
-check "shell exit code follows the last command"   bash -c "cd '$L' && printf 'executor codex\nexit\n' | node '$CLI' >/dev/null 2>&1; [ \$? -eq 1 ]"
+check "shell runs 'executor'"                       has 'claude  (available: claude, codex)'
+check "shell exit code follows the last command"   bash -c "cd '$L' && printf 'executor gemini\nexit\n' | node '$CLI' >/dev/null 2>&1; [ \$? -eq 1 ]"
 check "EOF ends the shell cleanly"                  bash -c "cd '$L' && printf 'help\n' | node '$CLI' >/dev/null"
 
 echo "cli — headless tick goes through the seam (M3):"

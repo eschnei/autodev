@@ -36,6 +36,7 @@ import { headlessAllowlist, assertAllowlistInvariants } from '../core/permission
 import { tick } from '../core/tick.mjs';
 import { makeJob, getExecutor, listExecutors, hasExecutor } from '../executors/executor.mjs';
 import '../executors/claude/index.mjs';
+import '../executors/codex/index.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;

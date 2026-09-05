@@ -35,6 +35,31 @@ check "claude adapter passes the allowlist as --allowedTools" bash -c ": > '$CLA
 check "claude adapter: missing binary → unavailable" n "import {ClaudeCodeExecutor} from '$SRC/executors/claude/index.mjs'; const e=new ClaudeCodeExecutor({bin:'/nonexistent/claude'}); if(await e.available()) throw 'avail'; const r=await e.execute({job_id:'j',task:'x',permissions:{}}); if(r.status!=='unavailable') throw r.status"
 check "no 'claude -p' outside the adapter (M3 invariant)" bash -c "! grep -rnE \"claude['\\\" ]+-p|spawn[a-zA-Z]*\\(['\\\"]claude\" '$SRC/core' '$SRC/cli' 2>/dev/null | grep -v '^\$'"
 
+echo "codex executor (M15) — same Job contract, vendor CLI confined to the adapter:"
+CJ="import {codex,CodexExecutor,inlineReferences,prohibitions} from '$SRC/executors/codex/index.mjs'; import {makeJob,getExecutor,listExecutors} from '$SRC/executors/executor.mjs';"
+cx() { node --input-type=module -e "$CJ $1"; }
+cx_run() { : > "$CODEX_STUB_LOG"; cx "await codex.execute(makeJob({task:'$1',cwd:'$SANDBOX'${2:-}}))"; }
+check "registers as 'codex' next to claude"          cx "import '$SRC/executors/claude/index.mjs'; const l=listExecutors(); if(!l.includes('codex')||!l.includes('claude')) throw l"
+check "capabilities: subscription, no mechanical allowlist, sandboxed" cx "const c=await codex.capabilities(); if(c.auth!=='subscription'||c.tool_allowlist!==false||c.sandbox!==true) throw JSON.stringify(c)"
+check "execute: normalized completed result with files_changed from file_change events" cx "const r=await codex.execute(makeJob({task:'do it',cwd:'$SANDBOX'})); if(r.status!=='completed'||r.summary!=='ok'||r.executor!=='codex'||r.files_changed.join()!=='src/a.js,src/b.js'||!r.raw.usage) throw JSON.stringify(r)"
+argv_ok() { cx_run 'hello there' && grep -q "ARGS: exec --json -a never -s workspace-write -C $SANDBOX -o .*last-message.txt --skip-git-repo-check -" "$CODEX_STUB_LOG" && grep -q 'PROMPT: .*hello there' "$CODEX_STUB_LOG"; }
+check "argv: exec --json, never ask, workspace-write sandbox, -C cwd, -o last-message, prompt on stdin" argv_ok
+net_ok() { cx_run 'x' && ! grep -q 'network_access=true' "$CODEX_STUB_LOG" && cx_run 'x' ",permissions:{allowed_tools:['Bash(git push origin feature/*)']}" && grep -q 'network_access=true' "$CODEX_STUB_LOG"; }
+check "network stays OFF unless the allowlist grants push/gh"  net_ok
+rules_ok() { cx_run 'x' && grep -q 'Never push, merge, or rebase onto the default branch' "$CODEX_STUB_LOG" && grep -q 'gh pr merge' "$CODEX_STUB_LOG" && grep -q 'Never edit AGENTS.md or CLAUDE.md' "$CODEX_STUB_LOG" && grep -q 'Do not push at all' "$CODEX_STUB_LOG"; }
+check "prohibitions are in the prompt (no default-branch push, no gh pr merge, no team docs, no push when not granted)" rules_ok
+check "reference/*.md mentions are inlined for Codex (bounded)" cx "const t=inlineReferences('run breakdown per reference/breakdown.md then reference/merge-verify.md §1'); if(!t.includes('===== reference/breakdown.md =====')||!t.includes('===== reference/merge-verify.md =====')||!t.includes('# Breakdown')) throw t.slice(0,200); if(inlineReferences('no refs here')!=='no refs here') throw 'changed'"
+limited_ok() { CODEX_STUB_MODE=limited cx "const r=await codex.execute(makeJob({task:'x',cwd:'$SANDBOX'})); if(r.status!=='rate_limited') throw JSON.stringify(r)"; }
+check "rate limit → rate_limited"                        limited_ok
+failed_ok() { CODEX_STUB_MODE=failed cx "const r=await codex.execute(makeJob({task:'x',cwd:'$SANDBOX'})); if(r.status!=='failed'||r.summary!=='tests failed'||r.tests_failed.join()!=='npm test') throw JSON.stringify(r)"; }
+check "turn.failed + failing test command → failed with tests_failed" failed_ok
+unavail_ok() { CODEX_STUB_MODE=fail cx "const r=await codex.execute(makeJob({task:'x',cwd:'$SANDBOX'})); if(r.status!=='unavailable') throw JSON.stringify(r)" && cx "const e=new CodexExecutor({bin:'/nonexistent/codex'}); if(await e.available()) throw 'avail'; const r=await e.execute(makeJob({task:'x',cwd:'$SANDBOX'})); if(r.status!=='unavailable') throw r.status"; }
+check "CLI missing/failing with no events → unavailable"  unavail_ok
+probe_ok() { : > "$CODEX_STUB_LOG"; cx "if(!(await codex.probe())) throw 'probe'" && grep -q 'PROMPT: reply with exactly: ok' "$CODEX_STUB_LOG" && ! grep -q 'Hard rules' "$CODEX_STUB_LOG"; }
+check "probe uses a bare prompt (no prohibitions block)"  probe_ok
+no_codex_outside_adapter() { ! grep -rnE "codex['\" ]+exec|spawn[a-zA-Z]*\(['\"]codex" "$SRC/core" "$SRC/cli" "$SRC/brain" "$SRC/executors/claude" 2>/dev/null | grep -q .; }
+check "no 'codex exec' outside the adapter"               no_codex_outside_adapter
+
 echo "permissions — allowlist parity with the bash builder:"
 CFG=$(jq -c '.commands={install:"",test:"npm test",lint:"npm run lint",build:"npm run build",app_run:"npm start"} | .repo.story_branch_prefix="autodev" | .backup.remote="backup"' "$PLUGIN/reference/deployment.example.json")
 OUT=$(n "import {headlessAllowlist} from '$SRC/core/permissions.mjs'; console.log(headlessAllowlist($CFG).join('\n'))"); export OUT

@@ -27,6 +27,7 @@ import { headlessAllowlist, assertAllowlistInvariants } from './permissions.mjs'
 import { loadDeployment } from './config/index.mjs';
 import { makeJob, getExecutor } from '../executors/executor.mjs';
 import '../executors/claude/index.mjs';
+import '../executors/codex/index.mjs';
 import { resolveProject } from './project.mjs';
 import { projectDeploymentFile } from './paths.mjs';
 import { brainStatus, ensureBrainProject, contextForJob, recordHandoff, describeBrain } from '../brain/index.mjs';
@@ -83,7 +84,8 @@ export async function tick(repo, { executorId, log = () => {}, env = process.env
 
   try {
     touch(join(runHome, 'heartbeat'));
-    const executor = getExecutor(executorId || cfg.executor?.default || 'claude');
+    const ctx = await resolveProject(repo);
+    const executor = getExecutor(executorId || ctx.project?.executor?.default || cfg.executor?.default || 'claude');
 
     // --- rate-limit gate: while paused, PROBE instead of trusting a recorded reset time ---
     const pause = join(runHome, 'rate-limited-until');
@@ -101,7 +103,6 @@ export async function tick(repo, { executorId, log = () => {}, env = process.env
     }
 
     // --- Brain (optional): context in front of the job, handoff after it ---
-    const ctx = await resolveProject(repo);
     const brain = await brainStatus(cfg, ctx.project);
     if (brain.state === 'connected') { try { await ensureBrainProject(brain, ctx, { log }); } catch (e) { brain.state = 'degraded'; brain.reason = `registration failed: ${e.message}`; } }
     if (brain.state !== 'off') log(`tick: brain ${describeBrain(brain)}`);
@@ -111,6 +112,8 @@ export async function tick(repo, { executorId, log = () => {}, env = process.env
     const job = makeJob({ role: 'loop', task: '/autodev:loop', cwd: repo, permissions: { allowed_tools: allow }, context: { config: configPath, branch: ctx.identity?.branch } });
     const bc = await contextForJob(brain, ctx, { role: 'loop', executor: executor.id, branch: ctx.identity?.branch, log });
     if (bc) { job.context.brain = { bundle_id: bc.bundle.id, memories: bc.bundle.memories.map((m) => ({ id: m.id, revision: m.revision })) }; job.task = `${bc.text}\n\n---\n\n${job.task}`; }
+    const caps = await executor.capabilities();
+    if (caps.tool_allowlist === false) log(`tick: ${executor.id} cannot enforce the tool allowlist mechanically — rules are prompt-level (${caps.guards || 'none'}); core verifies the default branch afterwards`);
     log(`tick: ${executor.id} ← /autodev:loop (${allow.length} permissions${bc ? `, brain context ${bc.bundle.id}` : ''})`);
     const result = await executor.execute(job);
     await recordHandoff(brain, ctx, job, result, { log });

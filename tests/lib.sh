@@ -69,6 +69,35 @@ case "${CLAUDE_STUB_MODE:-ok}" in
   *)       echo '{"type":"result","is_error":false,"result":"ok"}' ;;
 esac
 EOF
+# codex: records argv + the stdin prompt to $CODEX_STUB_LOG; emits `codex exec --json`
+# JSONL events per $CODEX_STUB_MODE (ok | limited | fail); honors -o <file>.
+export CODEX_STUB_LOG="${CODEX_STUB_LOG:-$SANDBOX/codex-calls.log}"
+export CODEX_STUB_MODE="${CODEX_STUB_MODE:-ok}"
+cat > "$STUBBIN/codex" <<'EOF'
+#!/usr/bin/env bash
+PROMPT=$(cat)
+printf 'ARGS: %s\nPROMPT: %s\n---\n' "$*" "$(printf '%s' "$PROMPT" | tr '\n' ' ')" >> "${CODEX_STUB_LOG:-/dev/null}"
+OUT=""; prev=""; for a in "$@"; do [[ "$prev" == "-o" ]] && OUT="$a"; prev="$a"; done
+case "${CODEX_STUB_MODE:-ok}" in
+  ok)
+    echo '{"type":"thread.started","thread_id":"t1"}'
+    echo '{"type":"item.completed","item":{"type":"command_execution","command":"npm test","exit_code":0,"aggregated_output":"ok"}}'
+    echo '{"type":"item.completed","item":{"type":"file_change","changes":[{"path":"src/a.js","kind":"update"},{"path":"src/b.js","kind":"add"}]}}'
+    echo '{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}'
+    echo '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":2}}'
+    [[ -n "$OUT" ]] && printf 'ok' > "$OUT"; exit 0 ;;
+  limited)
+    echo '{"type":"thread.started","thread_id":"t1"}'
+    echo '{"type":"error","message":"You have hit your usage limit (rate limit). Try again later."}'
+    exit 1 ;;
+  failed)
+    echo '{"type":"item.completed","item":{"type":"command_execution","command":"npm test","exit_code":1,"aggregated_output":"2 failing"}}'
+    echo '{"type":"turn.failed","error":{"message":"tests failed"}}'
+    exit 1 ;;
+  fail) exit 1 ;;
+  *) echo '{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}'; exit 0 ;;
+esac
+EOF
 # gh: pretends the default branch is unprotected and never talks to GitHub
 cat > "$STUBBIN/gh" <<'EOF'
 #!/usr/bin/env bash

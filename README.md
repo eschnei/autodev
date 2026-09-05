@@ -161,7 +161,7 @@ Both feed the human gates, never replace them.
 | `tracker.kind` | `local` (git-native board — zero setup, no tokens, `tracker.mjs board` view) · `linear` (the board is Linear, live) · `shortcut` (the board is Shortcut, live; cli intake) | `local` for new setups (init's default) |
 | `tracker.mirror.linear` | local mode: also mirror to Linear async (queued, off the critical path) | `false` |
 | `planning.engine` | `agency` (the PM + PjM personas author the PRD + breakdown) **or** `braingrid` (optional adapter; auto-falls-back to agency if unavailable) | `agency` |
-| `executor.default` | which model runtime runs the engine's jobs (`claude`; `codex` when its adapter lands) | `claude` |
+| `executor.default` | which model runtime runs the engine's jobs: `claude` (Claude Code CLI) or `codex` (Codex CLI, `codex login`) — same Job contract, switch with `autodev executor <name>` | `claude` |
 | `session_mode` | `concierge` (Marj greets, plain English drives) · `signal` (one-line pointer, dormant until invoked) · `silent` | `concierge` |
 | `intake.mode` | `cli` (in-session) **or** `linear` (tickets + comments, no terminal) | `cli` |
 | `intake.bugs` | `triage` (flag for a human) **or** `pipeline` (repro-test-first fixing) | `triage` |
