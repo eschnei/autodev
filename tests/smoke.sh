@@ -217,13 +217,13 @@ echo "headless allowlist hardening (AD-17 / external issue #9):"
 check "devloop-tick.sh parses" bash -n "$PLUGIN/scripts/devloop-tick.sh"
 check "doctor.sh parses" bash -n "$PLUGIN/scripts/doctor.sh"
 check "allowlist never grants gh pr merge (only humans merge)" bash -c \
-  "! grep -q 'gh pr merge' '$PLUGIN/scripts/devloop-tick.sh'"
+  "! grep -qE 'Bash\\(gh pr merge' '$PLUGIN/src/core/permissions.mjs'"
 check "allowlist never grants bare node (node -e = arbitrary exec)" bash -c \
-  "! grep -qF 'Bash(node *)' '$PLUGIN/scripts/devloop-tick.sh'"
+  "! grep -qF 'Bash(node *)' '$PLUGIN/src/core/permissions.mjs'"
 check "allowlist never grants bare jq" bash -c \
-  "! grep -qF 'Bash(jq' '$PLUGIN/scripts/devloop-tick.sh'"
+  "! grep -qF 'Bash(jq' '$PLUGIN/src/core/permissions.mjs'"
 check "node is scoped to the engine's tracker.mjs" bash -c \
-  "grep -qF 'Bash(node \${CLAUDE_PLUGIN_ROOT}/scripts/tracker.mjs' '$PLUGIN/scripts/devloop-tick.sh'"
+  "grep -qF 'Bash(node \${CLAUDE_PLUGIN_ROOT}/scripts/tracker.mjs' '$PLUGIN/src/core/permissions.mjs'"
 check "doctor has the branch-protection check" bash -c \
   "grep -qF 'branches/\$BRANCH/protection' '$PLUGIN/scripts/doctor.sh'"
 check "intake authorizes nobody by default (no more '*')" bash -c \
@@ -437,9 +437,10 @@ check "notify.sh parses" bash -n "$PLUGIN/scripts/notify.sh"
 NOLIB=$(mktemp -d); NOLIBR=$(mktemp -d); mkdir -p "$NOLIBR/.autodev"
 jq '.client_name="NoLib" | .tracker.kind="local"' "$PLUGIN/reference/deployment.example.json" > "$NOLIBR/.autodev/deployment.json"
 cp "$PLUGIN/scripts/"{devloop-tick.sh,watchdog.sh,notify.sh} "$NOLIB/"
+# devloop-tick.sh is a thin wrapper since v3: alone, it fails on the missing CLI instead.
 for s in devloop-tick watchdog; do
-  check "$s.sh fails loudly when lib/config.sh isn't a sibling" bash -c \
-    "out=\$(bash '$NOLIB/$s.sh' '$NOLIBR' 2>&1); rc=\$?; [[ \$rc -ne 0 ]] && printf '%s' \"\$out\" | grep -q 'missing lib/config.sh'"
+  check "$s.sh fails loudly when copied without its siblings" bash -c \
+    "out=\$(PATH='$STUBBIN:/usr/bin:/bin' bash '$NOLIB/$s.sh' '$NOLIBR' 2>&1); rc=\$?; [[ \$rc -ne 0 ]] && printf '%s' \"\$out\" | grep -qE 'missing lib/config.sh|autodev CLI is not installed'"
 done
 check "notify.sh fails loudly when lib/config.sh isn't a sibling" bash -c \
   "out=\$(bash '$NOLIB/notify.sh' '$NOLIBR' stalled 60 2>&1); rc=\$?; [[ \$rc -ne 0 ]] && printf '%s' \"\$out\" | grep -q 'missing lib/config.sh'"

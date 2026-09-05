@@ -21,6 +21,26 @@ In Claude Code, once per machine:
 /plugin install autodev@autodev-marketplace
 ```
 
+## The `autodev` CLI (v3, in progress)
+
+autoDev is becoming a model-neutral orchestrator with its own entry point. The CLI
+already exists and drives the same v2 engine through an executor adapter, so Claude
+is one interchangeable executor rather than the orchestrator:
+
+```bash
+git clone https://github.com/eschnei/autodev && cd autodev && npm link   # dev install
+cd /path/to/your/repo
+autodev            # interactive shell: status · continue · executor · approve · exit
+autodev status     # one-shot
+```
+
+Running `autodev` in a repo registers it in a **sidecar** project registry under
+`~/Library/Application Support/autoDev/` and writes nothing into the repository —
+`git status` stays clean. Existing `.autodev/deployment.json` deployments are read
+as-is. The design lives in [`docs/v3/decisions.md`](./docs/v3/decisions.md) and the
+behavior the migration may not regress in
+[`docs/v3-compatibility-contract.md`](./docs/v3-compatibility-contract.md).
+
 ## Quickstart
 
 You need `git`, `node` 18+, `jq` — plus `gh` and a GitHub remote for the default
@@ -127,6 +147,13 @@ Both feed the human gates, never replace them.
 | `execution.logging` | `quiet` (one line per action) · `normal` (checkpoint comments) · `verbose` (+ diffs) | `normal` |
 | `execution.incremental_breakdown` | whole feature at Gate 1 **or** per-milestone on demand | `false` |
 | `reporting.cadence` | operator digest: `off` · `hourly` · `<N>m` → log / slack / linear | `off` |
+
+## Tests
+
+```bash
+npm test            # = bash tests/run.sh — hermetic, no Claude, no network, ~450 checks
+bash tests/run.sh guards tracker   # a subset, by suite name
+```
 
 ## Docs
 

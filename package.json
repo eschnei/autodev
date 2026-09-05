@@ -1,0 +1,16 @@
+{
+  "name": "autodev",
+  "version": "2.3.0",
+  "description": "A Git-native, model-neutral AI engineering orchestrator. Turns approved PRDs into QA'd, human-reviewable, shipped code through a local board with two human gates; models are interchangeable executors.",
+  "type": "module",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": { "name": "Eric Schneider" },
+  "repository": "https://github.com/eschnei/autodev",
+  "homepage": "https://github.com/eschnei/autodev",
+  "engines": { "node": ">=18" },
+  "bin": { "autodev": "./bin/autodev.mjs" },
+  "scripts": {
+    "test": "bash tests/run.sh"
+  }
+}

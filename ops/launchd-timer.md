@@ -12,6 +12,22 @@ of "only humans merge", so run the doctor preflight first — it fails when the 
 is wired and the branch is unprotected (fix: GitHub → Settings → Branches, require a
 pull request before merging).
 
+## 0. Install the `autodev` CLI (v3)
+
+Since v3 the tick body lives in the autoDev checkout (`src/core/tick.mjs`) and
+reaches the model only through the executor adapter; `devloop-tick.sh` is a thin
+wrapper that calls `autodev tick <repo>`. The stable copy in `~/.autodev/bin/` finds
+the CLI on `PATH`, so link it once from the autoDev checkout:
+
+```bash
+cd /path/to/autodev && npm link      # puts `autodev` on PATH (e.g. /opt/homebrew/bin)
+autodev version
+```
+
+The plist template already exports a `PATH` that includes `/opt/homebrew/bin` and
+`/usr/local/bin`; if `npm link` put the binary elsewhere (`npm prefix -g`), add that
+`bin/` to the plist's `PATH`.
+
 ## 1. Copy the scripts to a stable path
 
 ```bash
