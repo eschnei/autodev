@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { hostname } from 'node:os';
 import { newId } from './ids.mjs';
 import { projectDir } from './paths.mjs';
+import { stateCommit } from './state.mjs';
 
 export function appendEvent(projectId, event, { env } = {}) {
   const dir = join(projectDir(projectId, env), 'events');
@@ -16,6 +17,7 @@ export function appendEvent(projectId, event, { env } = {}) {
   const at = new Date().toISOString();
   const evt = { id: newId('event'), at, client: `${hostname()}-autodev`, ...event };
   appendFileSync(join(dir, `${at.slice(0, 7)}.jsonl`), JSON.stringify(evt) + '\n');
+  stateCommit(`event ${evt.type}${evt.issue ? ` ${evt.issue}` : ''}`, env);
   return evt;
 }
 

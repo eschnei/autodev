@@ -24,20 +24,20 @@ check "banner says it was registered sidecar"    has 'registered just now, sidec
 check "banner shows the branch"                  has_re 'Branch: (main|master)'
 check "Brain not configured"                     has 'Brain: not configured'
 check "executor claude, subscription auth"       has_re 'Executor: claude'
-check "no v2 deployment → says so, points at init" has 'no v2 deployment here'
+check "no v2 deployment → says so, points at init" has 'not configured yet — run `autodev init`'
 check "git status stays completely clean"        bash -c "[ -z \"\$(git -C '$R' status --porcelain)\" ]"
 check "no .autodev/ .brain/ .claude/ created in the repo" bash -c "! ls -d '$R/.autodev' '$R/.brain' '$R/.claude' 2>/dev/null | grep -q ."
-check "registry written under AUTODEV_HOME"      test -f "$AUTODEV_HOME/registry.json"
-PID=$(jq -r '.projects[0].id' "$AUTODEV_HOME/registry.json")
+check "registry written under AUTODEV_HOME/state (the state repo)" test -f "$AUTODEV_HOME/state/registry.json"
+PID=$(jq -r ".projects[0].id" "$AUTODEV_HOME/state/registry.json")
 check "project id is prj_<ULID>"                 bash -c "grep -qE '^prj_[0-9A-HJKMNP-TV-Z]{26}$' <<<'$PID'"
-check "project.json exists in the sidecar layout" test -f "$AUTODEV_HOME/projects/$PID/project.json"
-check "board/events/locks/runtime dirs created"  bash -c "for d in board events locks runtime; do test -d '$AUTODEV_HOME/projects/$PID/'\$d || exit 1; done"
-check "project.json records normalized remote + root commit + clone path" jq -e --arg r "$R" '.repository.remote=="github.com/acme/app" and (.repository.root_commit|length)==40 and (.clones|any(.path==$r))' "$AUTODEV_HOME/projects/$PID/project.json"
-check "project.json has no machine secrets / prompts / memory" jq -e '(.legacy.deployment_json==null) and (has("memory")|not) and (has("prompts")|not)' "$AUTODEV_HOME/projects/$PID/project.json"
+check "project.json exists in the sidecar layout" test -f "$AUTODEV_HOME/state/projects/$PID/project.json"
+check "board/events/locks/runtime dirs created"  bash -c "for d in board events locks runtime; do test -d '$AUTODEV_HOME/state/projects/$PID/'\$d || exit 1; done"
+check "project.json records normalized remote + root commit + clone path" jq -e --arg r "$R" '.repository.remote=="github.com/acme/app" and (.repository.root_commit|length)==40 and (.clones|any(.path==$r))' "$AUTODEV_HOME/state/projects/$PID/project.json"
+check "project.json has no machine secrets / prompts / memory" jq -e '(.legacy.deployment_json==null) and (has("memory")|not) and (has("prompts")|not)' "$AUTODEV_HOME/state/projects/$PID/project.json"
 OUT=$(cd "$R" && ad status)
 check "second run resolves to the SAME id (idempotent)" has "($PID)"
 check "second run no longer says 'registered just now'" lacks 'registered just now'
-check "registry still has exactly one project"   bash -c "[ \"\$(jq '.projects|length' '$AUTODEV_HOME/registry.json')\" = 1 ]"
+check "registry still has exactly one project"   bash -c "[ \"\$(jq '.projects|length' '$AUTODEV_HOME/state/registry.json')\" = 1 ]"
 
 echo "cli — identity survives clones + moves:"
 BARE=$(mktemp -d "$SANDBOX/bare.XXXXXX"); git init -q --bare "$BARE"
@@ -46,7 +46,7 @@ C1=$(mktemp -d "$SANDBOX/c1.XXXXXX"); C2=$(mktemp -d "$SANDBOX/c2.XXXXXX")
 git clone -q "$BARE" "$C1/app"; git clone -q "$BARE" "$C2/app"
 ID1=$(cd "$C1/app" && ad status | grep -oE 'prj_[0-9A-Z]{26}'); ID2=$(cd "$C2/app" && ad status | grep -oE 'prj_[0-9A-Z]{26}')
 check "two clones of one remote → one project id"   test -n "$ID1" -a "$ID1" = "$ID2"
-check "…both clone paths recorded"                  jq -e --arg a "$C1/app" --arg b "$C2/app" '(.clones|any(.path==$a)) and (.clones|any(.path==$b))' "$AUTODEV_HOME/projects/$ID1/project.json"
+check "…both clone paths recorded"                  jq -e --arg a "$C1/app" --arg b "$C2/app" '(.clones|any(.path==$a)) and (.clones|any(.path==$b))' "$AUTODEV_HOME/state/projects/$ID1/project.json"
 MV=$(mktemp -d "$SANDBOX/mv.XXXXXX"); mv "$C2/app" "$MV/renamed"
 ID3=$(cd "$MV/renamed" && ad status | grep -oE 'prj_[0-9A-Z]{26}')
 check "a moved clone keeps its id"                  test "$ID3" = "$ID1"
@@ -59,7 +59,7 @@ echo "cli — executor selection:"
 check_out "executor shows the default + available set" "^claude  \(available: claude\)$" bash -c "cd '$R' && node '$CLI' executor"
 check_out "unknown executor is refused, lists available" 'no executor "codex" registered \(available: claude\)' bash -c "cd '$R' && node '$CLI' executor codex 2>&1; true"
 check "unknown executor exits 1"                 bash -c "cd '$R' && ! node '$CLI' executor codex >/dev/null 2>&1"
-check "setting a registered executor persists in project.json" bash -c "cd '$R' && node '$CLI' executor claude >/dev/null && jq -e '.executor.default==\"claude\"' '$AUTODEV_HOME/projects/$PID/project.json'"
+check "setting a registered executor persists in project.json" bash -c "cd '$R' && node '$CLI' executor claude >/dev/null && jq -e '.executor.default==\"claude\"' '$AUTODEV_HOME/state/projects/$PID/project.json'"
 
 echo "cli — proxying to the v2 engine through the executor seam:"
 L=$(mkrepo CliCo '.commands.test="npm test"'); git -C "$L" add -A >/dev/null; git -C "$L" commit -qm init >/dev/null
@@ -83,7 +83,7 @@ check "banner on a v2 repo shows the deployment + tracker + board" bash -c "cd '
 BADCFG=$(mkrepo BadCfgCo '.review.delivery="carrier-pigeon"'); git -C "$BADCFG" add -A >/dev/null; git -C "$BADCFG" commit -qm init >/dev/null
 check_out "banner surfaces config errors instead of crashing" "config: 1 error\(s\) — run .autodev doctor." bash -c "cd '$BADCFG' && node '$CLI' status"
 check_out "tick refuses an invalid config loudly (fail closed)" "review.delivery: must be one of" bash -c "node '$CLI' tick '$BADCFG' 2>&1; true"
-check "legacy deployment recorded on the project (read, never modified)" bash -c "id=\$(cd '$L' && node '$CLI' status | grep -oE 'prj_[0-9A-Z]{26}'); jq -e --arg p '$L/.autodev/deployment.json' '.legacy.deployment_json==\$p and .legacy.client_name==\"CliCo\" and .tracker.kind==\"local\"' \"$AUTODEV_HOME/projects/\$id/project.json\""
+check "legacy deployment recorded on the project (read, never modified)" bash -c "id=\$(cd '$L' && node '$CLI' status | grep -oE 'prj_[0-9A-Z]{26}'); jq -e --arg p '$L/.autodev/deployment.json' '.legacy.deployment_json==\$p and .legacy.client_name==\"CliCo\" and .tracker.kind==\"local\"' \"$AUTODEV_HOME/state/projects/\$id/project.json\""
 
 echo "cli — interactive shell:"
 OUT=$(cd "$L" && printf 'status\nexecutor\nexit\n' | node "$CLI")

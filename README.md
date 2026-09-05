@@ -35,9 +35,24 @@ autodev status     # one-shot
 ```
 
 Running `autodev` in a repo registers it in a **sidecar** project registry under
-`~/Library/Application Support/autoDev/` and writes nothing into the repository —
-`git status` stays clean. Existing `.autodev/deployment.json` deployments are read
-as-is. With [Brain](https://github.com/eschnei/brain) configured (`brain.enabled`,
+`~/Library/Application Support/autoDev/state/` — one git repo holding the
+registry, project metadata, boards, and events (workflow reality) — and writes
+nothing into the repository: `git status` stays clean. `autodev init` sets a new
+project up the same way (deployment + board in the sidecar, commands detected
+from `package.json`). Existing `.autodev/deployment.json` deployments are read
+as-is with their repo-local board.
+
+Durability and continuity across machines come from a **private** state remote,
+never the application repo and never Brain:
+
+```bash
+# on the Mac mini, once:
+git init --bare -b main "$HOME/Library/Application Support/autoDev/state.git"
+# on each machine:
+autodev state remote 'macmini:Library/Application Support/autoDev/state.git'
+autodev state sync            # fast-forward pull, then push
+autodev state takeover        # one active writer per project; explicit hand-over
+``` With [Brain](https://github.com/eschnei/brain) configured (`brain.enabled`,
 `brain.url`; token from `$BRAIN_TOKEN`, `~/.config/autodev/brain.token`, or the
 macOS Keychain) every job gets the project's scoped memory in front of its task
 and leaves a handoff behind, so a different executor can continue the work; when

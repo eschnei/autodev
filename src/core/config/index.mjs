@@ -21,8 +21,8 @@ export class ConfigError extends Error {
 // Loads + normalizes + validates. Throws ConfigError with code NO_CONFIG when the repo
 // has no deployment, INVALID_CONFIG when the file fails the schema (errors listed).
 // Pass { strict: false } to get the validation result back instead of throwing.
-export async function loadDeployment(repoRoot, { strict = true } = {}) {
-  const configPath = join(repoRoot, '.autodev', 'deployment.json');
+export async function loadDeployment(repoRoot, { strict = true, configPath: explicit } = {}) {
+  const configPath = explicit || join(repoRoot, '.autodev', 'deployment.json');
   if (!existsSync(configPath)) throw new ConfigError(`no ${configPath}`, { code: 'NO_CONFIG' });
   const { loadConfig } = await import('../../../scripts/lib/config.mjs');
   const prev = process.env.AUTODEV_CONFIG;

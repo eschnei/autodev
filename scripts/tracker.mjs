@@ -24,13 +24,26 @@ import { readFileSync, writeFileSync, renameSync, readdirSync, existsSync, mkdir
 import { join, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { loadConfig } from './lib/config.mjs';
+import { randomBytes } from 'node:crypto';
+
+// ULID (Crockford base32, time-sortable) — the canonical identity behind the AD-n key
+// (decision D3). Inlined: this facade stays self-contained for the ~/.autodev/bin copy.
+function ulid(time = Date.now()) {
+  const A = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; let out = '', t = time;
+  for (let i = 0; i < 10; i++) { out = A[t % 32] + out; t = Math.floor(t / 32); }
+  const rnd = randomBytes(10); let acc = 0, bits = 0, r = '';
+  for (const b of rnd) { acc = (acc << 8) | b; bits += 8; while (bits >= 5) { bits -= 5; r += A[(acc >>> bits) & 31]; } }
+  return out + r;
+}
 
 function die(msg) { console.error(`tracker.mjs: ${msg}`); process.exit(1); }
 
 const { cfg, configPath: CONFIG_PATH } = loadConfig();
 if (!cfg) die('no .autodev/deployment.json found (set $AUTODEV_CONFIG or run inside the repo)');
 const ROOT = dirname(dirname(CONFIG_PATH));
-const BOARD = join(ROOT, '.autodev', 'board');
+// v3 sidecar projects keep the board outside the repo (decision D2) — the core
+// Tracker passes its location; a v2 deployment's board sits next to its config.
+const BOARD = process.env.AUTODEV_BOARD_DIR || join(ROOT, '.autodev', 'board');
 const KIND = cfg.tracker?.kind || 'linear';
 const MIRROR = KIND === 'local' && cfg.tracker?.mirror?.linear === true;
 
@@ -93,9 +106,11 @@ const local = {
   'create-issue'(a) {
     const f = flags(a);
     if (!f.title) die('create-issue needs --title');
+    const labels = f.labels ? f.labels.split(',') : [];
+    const isFeature = labels.includes(cfg.tracker?.labels?.route_feature || 'route:feature');
     const issue = {
-      id: nextId(), title: f.title, description: f.desc || '',
-      stage: f.stage || 'new_request', labels: f.labels ? f.labels.split(',') : [],
+      id: nextId(), uid: `${isFeature ? 'req' : 'task'}_${ulid()}`, title: f.title, description: f.desc || '',
+      stage: f.stage || 'new_request', labels,
       project: f.project || null, milestone: f.milestone || null,
       relations: [], attachments: [], comments: [],
       history: [{ at: now(), to: f.stage || 'new_request', note: 'created' }],
@@ -181,7 +196,7 @@ const local = {
       console.log(`\n■ ${stageName(key)} (${rows.length})`);
       for (const i of rows) console.log(`  ${i.id}  ${i.title}`);
     }
-    const htmlPath = flags(a).html || join(ROOT, '.autodev', 'board.html');
+    const htmlPath = flags(a).html || (process.env.AUTODEV_BOARD_DIR ? join(dirname(BOARD), 'board.html') : join(ROOT, '.autodev', 'board.html'));
     const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const cols = order.map((key) => {
       const rows = all.filter((i) => i.stage === key);

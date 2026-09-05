@@ -9,16 +9,19 @@
 //   other   ~/.autodev-data
 //
 // Layout under the root:
-//   registry.json                       repo fingerprint → project id index
-//   projects/<project-id>/project.json  identity + machine-local metadata
-//   projects/<project-id>/board/        workflow state (sidecar board, M5A+)
-//   projects/<project-id>/events/       append-only history
-//   projects/<project-id>/locks/
-//   projects/<project-id>/runtime/      heartbeat, pause file, logs, caches
+//   state/                               ONE git repo = workflow reality, synced to a
+//   state/registry.json                  private remote (src/core/state.mjs)
+//   state/projects/<id>/project.json     identity + metadata
+//   state/projects/<id>/deployment.json  v3-native deployment config (sidecar projects)
+//   state/projects/<id>/board/           the board (sidecar projects)
+//   state/projects/<id>/events/          append-only history
+//   state/projects/<id>/runtime/         heartbeat, pause file, logs (git-ignored)
+//   state/projects/<id>/locks/           (git-ignored)
+//   agents/                              the Agency store (roles overrides, personas)
 
 import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, existsSync, renameSync } from 'node:fs';
 
 export function dataRoot(env = process.env) {
   if (env.AUTODEV_HOME) return env.AUTODEV_HOME;
@@ -28,9 +31,21 @@ export function dataRoot(env = process.env) {
   return join(home, '.autodev-data');
 }
 
-export function registryPath(env) { return join(dataRoot(env), 'registry.json'); }
-export function projectDir(projectId, env) { return join(dataRoot(env), 'projects', projectId); }
+export function stateDir(env) {
+  const root = dataRoot(env); const state = join(root, 'state');
+  // one-time layout move: the first v3 builds kept projects/ + registry.json at the root
+  if (!existsSync(state) && (existsSync(join(root, 'projects')) || existsSync(join(root, 'registry.json')))) {
+    mkdirSync(state, { recursive: true });
+    for (const f of ['projects', 'registry.json']) if (existsSync(join(root, f))) renameSync(join(root, f), join(state, f));
+  }
+  return state;
+}
+export function registryPath(env) { return join(stateDir(env), 'registry.json'); }
+export function projectDir(projectId, env) { return join(stateDir(env), 'projects', projectId); }
 export function projectFile(projectId, env) { return join(projectDir(projectId, env), 'project.json'); }
+export function projectDeploymentFile(projectId, env) { return join(projectDir(projectId, env), 'deployment.json'); }
+export function projectBoardDir(projectId, env) { return join(projectDir(projectId, env), 'board'); }
+export function projectRuntimeDir(projectId, env) { return join(projectDir(projectId, env), 'runtime'); }
 
 export const PROJECT_SUBDIRS = Object.freeze(['board', 'events', 'locks', 'runtime']);
 

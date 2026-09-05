@@ -14,7 +14,7 @@
 // under the sidecar data root — `git status` stays clean (decision D2 / G9).
 
 import { createInterface } from 'node:readline';
-import { readFileSync } from 'node:fs';
+
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -27,6 +27,10 @@ import { projectPersonas, claudeAgentsDir } from '../executors/claude/agents.mjs
 import { readWorkflowState, nextAction, describeState } from '../core/workflow/state.mjs';
 import { approve as gateApprove, reject as gateReject, jobFor, GateError } from '../core/workflow/gates.mjs';
 import { brainStatus, describeBrain, ensureBrainProject, contextForJob, recordHandoff, recordGateDecision } from '../brain/index.mjs';
+import { StateRepo, StateError } from '../core/state.mjs';
+import { defaults as schemaDefaults, validate as validateConfig } from '../core/config/schema.mjs';
+import { projectDeploymentFile, projectBoardDir, ensureProjectDirs } from '../core/paths.mjs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { headlessAllowlist, assertAllowlistInvariants } from '../core/permissions.mjs';
 import { tick } from '../core/tick.mjs';
 import { makeJob, getExecutor, listExecutors, hasExecutor } from '../executors/executor.mjs';
@@ -47,6 +51,8 @@ usage: autodev [command] [args]      (no command = interactive shell)
                          autoDev records it, then hands the model one bounded job
   reject <id> <reason>   record a Gate 2 rejection → back to AI Development with the reason
   next                   what the engine would do next, decided without a model
+  init [--name N] [--test cmd] [--brain-url U]   v3 setup: deployment + board in the sidecar; the repo stays untouched
+  state [status|remote <url>|sync|takeover|release]   the sidecar state repo (workflow reality) + its private remote
   brain [status|context [REQ]|search <q>|remember <text>]   the Brain connection (optional; degraded mode when unreachable)
   agents [sync|install]  Agency roles + persona resolution; sync = adopt existing
                          ~/.claude/agents personas into the store and project the
@@ -70,7 +76,7 @@ async function context(cwd) {
 
 function boardSnapshot(ctx) {
   if (!ctx.legacy || (ctx.legacy.tracker?.kind || 'local') !== 'local') return null;
-  const tracker = new Tracker({ repoRoot: ctx.identity.root, configPath: ctx.legacy.configPath, cfg: ctx.legacy });
+  const tracker = Tracker.for(ctx);
   const counts = {};
   for (const i of tracker.readIssues()) counts[i.stage] = (counts[i.stage] || 0) + 1;
   const names = ctx.legacy.tracker?.statuses || {};
@@ -93,11 +99,14 @@ function banner(ctx) {
     const st = readWorkflowState(tracker, ctx.legacy);
     if (st.awaiting_human.length) lines.push(`Awaiting you: ${st.gates.gate1.map((i) => `Gate 1 ${i.id}`).concat(st.gates.gate2.map((i) => `Gate 2 ${i.id}`), st.blocked.map((i) => `Blocked ${i.id}`), st.clarifying.map((i) => `Clarifying ${i.id}`)).join(' · ')}`);
   }
+  const st = new StateRepo().status();
+  if (st.initialized) lines.push(`State: ${st.head}${st.dirty ? ` (+${st.dirty} uncommitted)` : ''} · ${st.remote ? `remote ${st.remote}${st.ahead != null ? ` · ahead ${st.ahead} behind ${st.behind}` : ''}` : 'no remote (autodev state remote <url>)'}`);
   if (ctx.legacy) {
     const v = ctx.legacy.validation;
     const cfgNote = v && !v.ok ? ` · config: ${v.errors.length} error(s) — run \`autodev doctor\`` : (v?.warnings?.length ? ` · config: ${v.warnings.length} warning(s)` : '');
-    lines.push(`Status: ready — v2 deployment "${ctx.legacy.client_name}" · tracker ${ctx.legacy.tracker?.kind || 'local'} · planning ${ctx.legacy.planning?.engine || 'agency'}${board ? ` · board: ${board}` : ''}${cfgNote}`);
-  } else lines.push('Status: registered (sidecar); no v2 deployment here — run /autodev:init in Claude Code until v3 init lands (M5A)');
+    const kind = ctx.legacy.sidecar ? 'sidecar deployment' : 'v2 deployment';
+    lines.push(`Status: ready — ${kind} "${ctx.legacy.client_name}" · tracker ${ctx.legacy.tracker?.kind || 'local'}${ctx.project.tracker?.mode === 'sidecar' ? ' (sidecar board)' : ''} · planning ${ctx.legacy.planning?.engine || 'agency'}${board ? ` · board: ${board}` : ''}${cfgNote}`);
+  } else lines.push('Status: registered (sidecar); not configured yet — run `autodev init` (writes nothing into the repo)');
   return lines.join('\n');
 }
 
@@ -132,7 +141,7 @@ async function runJob(ctx, task, role) {
 
 function localTracker(ctx) {
   if (!ctx.legacy || (ctx.legacy.tracker?.kind || 'local') !== 'local') return null;
-  return new Tracker({ repoRoot: ctx.identity.root, configPath: ctx.legacy.configPath, cfg: ctx.legacy });
+  return Tracker.for(ctx);
 }
 
 async function cmdNext(ctx) {
@@ -147,8 +156,14 @@ async function cmdNext(ctx) {
 
 // Gate decisions: deterministic on a local board (record → bounded job → verify);
 // proxied to the prose engine for API trackers until their core wrapper lands.
+function claimSeat(ctx) {
+  try { new StateRepo().claim(ctx.project.id); return true; }
+  catch (e) { if (e instanceof StateError) { console.error(`autodev: ${e.message}`); return false; } throw e; }
+}
+
 async function cmdApprove(ctx, id, note) {
   if (!id) { console.error('usage: autodev approve <issue-id> [note]'); return 2; }
+  if (!claimSeat(ctx)) return 1;
   const tracker = localTracker(ctx);
   if (!tracker) return runJob(ctx, `The operator approved ${id}${note ? ` — ${note}` : ''}. Log the gate decision with an audit comment and advance it per the manual; do one bounded unit of work then stop.`, 'gate');
   let decision;
@@ -187,6 +202,53 @@ async function cmdTick(repo, log) {
   catch (e) {
     if (e.code === 'NO_CONFIG' || e.code === 'INVALID_CONFIG') { console.error(`autodev tick: ${e.message}`); return 1; }
     throw e;
+  }
+}
+
+// v3 init: a deployment for THIS project written into the sidecar — the repo stays
+// byte-identical (G9). Detects what it can; flags override; no questions (interactive
+// setup stays in the plugin's /autodev:init for now).
+async function cmdInit(ctx, args) {
+  if (!ctx.identity) { console.error('autodev: not in a git repository'); return 1; }
+  if (ctx.legacy && !ctx.legacy.sidecar) { console.error(`autodev: this repo already has a v2 deployment at ${ctx.legacy.configPath} — v3 keeps using it; migrate with \`autodev migrate\` (M14)`); return 1; }
+  const f = {}; for (let i = 0; i < args.length; i++) if (args[i].startsWith('--')) { f[args[i].slice(2)] = args[i + 1] && !args[i + 1].startsWith('--') ? args[++i] : true; }
+  const dest = projectDeploymentFile(ctx.project.id);
+  if (existsSync(dest) && !f.force) { console.error(`autodev: already initialized (${dest}) — pass --force to rewrite with detected values`); return 1; }
+  const cfg = schemaDefaults({ identity: true, local: false });
+  const root = ctx.identity.root;
+  cfg.client_name = f.name || ctx.project.name;
+  cfg.assistant_name = f.assistant || 'Marj';
+  cfg.repo = { url: ctx.identity.remote_raw || '', default_branch: f['default-branch'] || ctx.identity.branch || 'main', feature_branch_prefix: 'feature/', story_branch_prefix: 'autodev' };
+  cfg.bot_identity = { name: 'autodev-bot', email: 'autodev-bot@example.com' };
+  cfg.tracker.kind = 'local'; cfg.tracker.instance_label = `autodev:${cfg.client_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`;
+  // detect commands from package.json scripts (bun/pnpm/yarn/npm)
+  const pm = existsSync(join(root, 'bun.lockb')) || existsSync(join(root, 'bun.lock')) ? 'bun' : existsSync(join(root, 'pnpm-lock.yaml')) ? 'pnpm' : existsSync(join(root, 'yarn.lock')) ? 'yarn' : 'npm';
+  let scripts = {}; try { scripts = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).scripts || {}; } catch {}
+  const run = (k) => (scripts[k] ? (pm === 'npm' ? `npm run ${k}` : `${pm} ${k}`) : '');
+  cfg.commands = { install: f.install ?? (existsSync(join(root, 'package.json')) ? `${pm} install` : ''), test: f.test ?? (scripts.test ? (pm === 'npm' ? 'npm test' : `${pm} test`) : ''), lint: f.lint ?? run('lint'), build: f.build ?? run('build'), app_run: f.run ?? (run('dev') || run('start') || run('serve')), app_url: f.url ?? (scripts.dev || scripts.start ? 'http://localhost:3000' : '') };
+  cfg.qa.hermetic.env = {}; cfg.qa.hermetic.forbid_endpoints = []; cfg.qa.acceptance.integrated_suites = cfg.commands.test ? [cfg.commands.test] : []; cfg.qa.e2e_framework = ''; cfg.qa.e2e_dir = '';
+  cfg.personas.dev_routing = [{ match: 'default', persona: 'general-purpose', why: 'fallback when no clear specialist' }];
+  cfg.brain = { enabled: !!f['brain-url'], project_id: null, url: f['brain-url'] || null };
+  const v = validateConfig(cfg);
+  if (!v.ok) { console.error(`autodev: generated config is invalid:\n  - ${v.errors.join('\n  - ')}`); return 1; }
+  ensureProjectDirs(ctx.project.id); mkdirSync(projectBoardDir(ctx.project.id), { recursive: true });
+  writeFileSync(dest, JSON.stringify(cfg, null, 2) + '\n');
+  ctx.project.tracker = { kind: 'local', location: projectBoardDir(ctx.project.id), mode: 'sidecar' };
+  saveProject(ctx.project, undefined, { commit: false });
+  new StateRepo().commit(`project ${ctx.project.id}: initialized ${cfg.client_name}`);
+  console.log(`initialized ${cfg.client_name} (sidecar)\n  deployment: ${dest}\n  board:      ${projectBoardDir(ctx.project.id)}\n  commands:   test "${cfg.commands.test || '—'}" · lint "${cfg.commands.lint || '—'}" · build "${cfg.commands.build || '—'}" · run "${cfg.commands.app_run || '—'}"\n  nothing was written into ${root}\nnext: autodev status · autodev state remote <url> (Mac mini) · edit the deployment file for hermetic env + routing`);
+  return 0;
+}
+
+async function cmdState(ctx, sub, arg) {
+  const st = new StateRepo();
+  switch (sub || 'status') {
+    case 'status': { const s = st.status(); if (!s.initialized) { console.log('state: not initialized (created on first registration)'); return 0; } console.log(`state: ${s.dir}\n  head ${s.head} · ${s.dirty} uncommitted · machine ${s.machine}\n  remote ${s.remote || '(none) — autodev state remote <url>'}${s.ahead != null ? ` · ahead ${s.ahead} · behind ${s.behind}` : ''}`); if (ctx.project) { const w = st.writer(ctx.project.id); console.log(`  writer for ${ctx.project.id}: ${w ? `${w.machine} since ${w.since}` : '(none)'}`); } return 0; }
+    case 'remote': { if (!arg) { console.log(st.remote() || '(none)'); return 0; } st.setRemote(arg); console.log(`remote: ${arg}\nnext: autodev state sync   (on the Mac mini once: git init --bare -b main "~/Library/Application Support/autoDev/state.git")`); return 0; }
+    case 'sync': { st.init(); st.commit('state: sync'); const r = st.sync(); console.log(`pull: ${r.pull.pulled ? (r.pull.changed ? `fast-forwarded to ${r.pull.to}` : 'up to date') : r.pull.reason}\npush: ${r.push.pushed ? 'ok' : r.push.reason}`); return r.ok ? 0 : 1; }
+    case 'takeover': { if (!ctx.project) { console.error('autodev: not in a git repository'); return 1; } const p = st.pull(); if (p.diverged) { console.error(`autodev: ${p.reason}`); return 1; } const seat = st.claim(ctx.project.id, { takeover: true }); st.commit(`state: ${seat.machine} took over ${ctx.project.id}${seat.took_over_from ? ` from ${seat.took_over_from}` : ''}`); const r = st.push(); console.log(`writer: ${seat.machine}${seat.took_over_from ? ` (took over from ${seat.took_over_from})` : ''} · push ${r.pushed ? 'ok' : r.reason}`); return 0; }
+    case 'release': { if (!ctx.project) return 1; st.release(ctx.project.id); st.commit(`state: released ${ctx.project.id}`); st.push(); console.log('writer seat released'); return 0; }
+    default: console.error(`autodev: unknown state subcommand "${sub}" (status | remote [url] | sync | takeover | release)`); return 2;
   }
 }
 
@@ -237,9 +299,11 @@ function cmdDoctor(cwd) {
 }
 
 // ---- dispatch ---------------------------------------------------------------------
-async function dispatch(ctx, line) {
-  const [cmd, ...rest] = line.trim().split(/\s+/);
-  const arg = rest.join(' ');
+// `parts` is argv (quoting preserved) or a shell line split on whitespace
+async function dispatch(ctx, parts) {
+  const words = Array.isArray(parts) ? parts : String(parts).trim().split(/\s+/);
+  const [cmd, ...rest] = words;
+  const line = words.join(' ');
   switch ((cmd || '').toLowerCase()) {
     case '': return 0;
     case 'help': case '?': console.log(HELP); return 0;
@@ -252,6 +316,8 @@ async function dispatch(ctx, line) {
     case 'next': return cmdNext(ctx);
     case 'doctor': return cmdDoctor(ctx.identity?.root || process.cwd());
     case 'agents': return cmdAgents(ctx, rest[0]);
+    case 'init': return cmdInit(ctx, rest);
+    case 'state': return cmdState(ctx, rest[0], rest[1]);
     case 'brain': return cmdBrain(ctx, rest[0], rest.slice(1).join(' ') || undefined);
     case 'tick': return cmdTick(rest[0], (m) => console.log(m));
     default: return runJob(ctx, line.trim(), 'concierge');
@@ -281,5 +347,5 @@ export async function main(argv) {
   if (cmd === 'tick') return cmdTick(argv[1], (m) => console.error(m));
   const ctx = await context(process.cwd());
   if (!cmd) return shell(ctx);
-  return dispatch(ctx, argv.join(' '));
+  return dispatch(ctx, argv);
 }

@@ -64,7 +64,7 @@ const bucketOf = (name, completed) => {
   return null;
 };
 if ((cfg.tracker?.kind || 'linear') === 'local') {
-  const boardDir = join(dirname(dirname(CONFIG_PATH)), '.autodev', 'board');
+  const boardDir = process.env.AUTODEV_BOARD_DIR || join(dirname(dirname(CONFIG_PATH)), '.autodev', 'board');
   try {
     for (const f of readdirSync(boardDir).filter((x) => x.endsWith('.json') && !x.startsWith('_'))) {
       const i = JSON.parse(readFileSync(join(boardDir, f), 'utf8'));

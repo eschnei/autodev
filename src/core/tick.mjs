@@ -28,6 +28,7 @@ import { loadDeployment } from './config/index.mjs';
 import { makeJob, getExecutor } from '../executors/executor.mjs';
 import '../executors/claude/index.mjs';
 import { resolveProject } from './project.mjs';
+import { projectDeploymentFile } from './paths.mjs';
 import { brainStatus, ensureBrainProject, contextForJob, recordHandoff, describeBrain } from '../brain/index.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -40,8 +41,16 @@ function today() { return new Date().toISOString().slice(0, 10); }
 // Schema-validated, legacy-normalized config (src/core/config). NO_CONFIG /
 // INVALID_CONFIG surface as ConfigError codes for the wrapper to report loudly.
 export async function loadRepoConfig(repo) {
-  const { cfg, configPath } = await loadDeployment(repo);
-  return { cfg, configPath };
+  try { const { cfg, configPath } = await loadDeployment(repo); return { cfg, configPath }; }
+  catch (e) {
+    if (e.code !== 'NO_CONFIG') throw e;
+    // v3-native: the deployment lives in the sidecar next to the project's board
+    const ctx = await resolveProject(repo);
+    const sidecar = ctx.project ? projectDeploymentFile(ctx.project.id) : null;
+    if (!sidecar || !existsSync(sidecar)) throw e;
+    const { cfg, configPath } = await loadDeployment(repo, { configPath: sidecar });
+    return { cfg, configPath };
+  }
 }
 
 export function runnerHome(cfg) {
@@ -119,8 +128,9 @@ export async function tick(repo, { executorId, log = () => {}, env = process.env
     }
 
     // --- operator digest (self-gates on reporting.cadence) + Linear mirror flush (self-gates) ---
+    const boardEnv = ctx.project?.tracker?.mode === 'sidecar' ? { AUTODEV_BOARD_DIR: ctx.project.tracker.location } : {};
     for (const [script, args] of [[join(SCRIPTS, 'report.mjs'), []], [join(SCRIPTS, 'tracker.mjs'), ['flush-mirror']]]) {
-      const r = spawnSync('node', [script, ...args], { cwd: repo, env: { ...env, AUTODEV_CONFIG: configPath }, encoding: 'utf8' });
+      const r = spawnSync('node', [script, ...args], { cwd: repo, env: { ...env, AUTODEV_CONFIG: configPath, ...boardEnv }, encoding: 'utf8' });
       if (r.status !== 0) appendFileSync(errLog, `${script}: ${r.stderr}\n`);
     }
     return 0;

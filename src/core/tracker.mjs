@@ -14,20 +14,32 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { stateCommit } from './state.mjs';
 
 const FACADE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'scripts', 'tracker.mjs');
 
 export class TrackerError extends Error {}
 
 export class Tracker {
-  #root; #configPath; #cfg;
-  constructor({ repoRoot, configPath, cfg }) {
+  #root; #configPath; #cfg; #boardDir; #sidecar;
+  // boardDir: the sidecar board (v3-native projects) — omitted for a v2 deployment,
+  // whose board sits next to its .autodev/deployment.json
+  constructor({ repoRoot, configPath, cfg, boardDir }) {
     this.#root = repoRoot;
     this.#configPath = configPath || join(repoRoot, '.autodev', 'deployment.json');
     this.#cfg = cfg || {};
+    this.#boardDir = boardDir || join(dirname(this.#configPath), 'board');
+    this.#sidecar = !!boardDir;
+  }
+  static for(ctx) {   // from a CLI/tick context: sidecar board when the project is v3-native
+    const sidecar = ctx.project?.tracker?.mode === 'sidecar' ? ctx.project.tracker.location : undefined;
+    return new Tracker({ repoRoot: ctx.identity.root, configPath: ctx.legacy?.configPath, cfg: ctx.legacy || {}, boardDir: sidecar });
   }
   get kind() { return this.#cfg.tracker?.kind || 'local'; }
-  get boardDir() { return join(dirname(this.#configPath), 'board'); }
+  get boardDir() { return this.#boardDir; }
+  get sidecar() { return this.#sidecar; }
+  // env a v2 script needs to see the same board this Tracker sees
+  get env() { return { AUTODEV_CONFIG: this.#configPath, ...(this.#sidecar ? { AUTODEV_BOARD_DIR: this.#boardDir } : {}) }; }
   get instanceLabel() { return this.#cfg.tracker?.instance_label || null; }
 
   // ---- reads (local kind: direct, no subprocess) ----
@@ -52,8 +64,9 @@ export class Tracker {
 
   // ---- writes (always through the facade) ----
   #run(args) {
-    const r = spawnSync('node', [FACADE, ...args], { cwd: this.#root, env: { ...process.env, AUTODEV_CONFIG: this.#configPath }, encoding: 'utf8' });
+    const r = spawnSync('node', [FACADE, ...args], { cwd: this.#root, env: { ...process.env, ...this.env }, encoding: 'utf8' });
     if (r.status !== 0) throw new TrackerError((r.stderr || r.stdout || `tracker.mjs ${args[0]} failed`).trim());
+    if (this.#sidecar && !['state-id', 'doctor', 'whoami'].includes(args[0])) stateCommit(`board: ${args.slice(0, 3).join(' ')}`);
     return r.stdout.trim();
   }
   createIssue({ title, desc, stage, labels, project, milestone }) {

@@ -15,7 +15,8 @@ import { join, dirname } from 'node:path';
 import { hostname } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { newId, isId } from './ids.mjs';
-import { registryPath, projectFile, ensureProjectDirs } from './paths.mjs';
+import { registryPath, projectFile, ensureProjectDirs, projectBoardDir, projectDeploymentFile } from './paths.mjs';
+import { stateCommit } from './state.mjs';
 
 function git(cwd, ...args) {
   const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
@@ -79,9 +80,16 @@ export function loadProject(projectId, env) {
   return readJson(projectFile(projectId, env), null);
 }
 
-export function saveProject(project, env) {
+// Writes only when something other than timestamps changed — the state repo must
+// not accumulate a commit per CLI invocation (that noise would make two machines
+// diverge for nothing).
+const strip = (o) => JSON.stringify({ ...o, updated_at: undefined, clones: (o.clones || []).map((c) => ({ ...c, last_seen: undefined })) });
+export function saveProject(project, env, { commit = true } = {}) {
+  const existing = readJson(projectFile(project.id, env), null);
+  if (existing && strip(existing) === strip(project)) return project;
   project.updated_at = new Date().toISOString();
   writeJsonAtomic(projectFile(project.id, env), project);
+  if (commit) stateCommit(`project ${project.id}: ${project.name} updated`, env);
   return project;
 }
 
@@ -93,7 +101,7 @@ export function registerProject(cwd = process.cwd(), { name, legacy = null, env 
   if (!identity) throw new Error(`not a git repository: ${cwd}`);
   const reg = loadRegistry(env);
   let entry = findProject(identity, env, reg); // same object we save below — mutations must land
-  let created = false;
+  let created = false, changed = false;
   const now = new Date().toISOString();
   const clone = { path: identity.root, machine: hostname(), last_seen: now };
 
@@ -112,9 +120,9 @@ export function registerProject(cwd = process.cwd(), { name, legacy = null, env 
     entry.remote = entry.remote || identity.remote;
     entry.root_commit = entry.root_commit || identity.root_commit;
     const seen = (entry.clones || []).find((c) => c.path === clone.path);
-    if (seen) seen.last_seen = now; else (entry.clones ||= []).push(clone);
+    if (!seen) { (entry.clones ||= []).push(clone); changed = true; }   // last_seen is not worth a write
   }
-  saveRegistry(reg, env);
+  if (created || changed) saveRegistry(reg, env);
 
   ensureProjectDirs(entry.id, env);
   const existing = loadProject(entry.id, env);
@@ -130,16 +138,20 @@ export function registerProject(cwd = process.cwd(), { name, legacy = null, env 
     brain: { enabled: false, project_id: null, url: null },
     executor: { default: 'claude' },
     planning: { engine: 'agency' },
-    tracker: { kind: 'local', location: null },
+    tracker: { kind: 'local', location: projectBoardDir(entry.id, env), mode: 'sidecar' },
     created_at: now,
   };
   project.clones = entry.clones;
   if (legacy?.configPath) {
+    // a v2 deployment: its board stays where it is (repo-local) until migrated (M14)
     project.legacy = { deployment_json: legacy.configPath, client_name: legacy.client_name || null };
-    project.tracker = { kind: legacy.tracker?.kind || 'local', location: legacy.tracker?.kind === 'local' || !legacy.tracker?.kind ? join(dirname(legacy.configPath), 'board') : null };
+    project.tracker = { kind: legacy.tracker?.kind || 'local', location: legacy.tracker?.kind === 'local' || !legacy.tracker?.kind ? join(dirname(legacy.configPath), 'board') : null, mode: 'legacy' };
     if (legacy.repo?.default_branch) project.repository.default_branch = legacy.repo.default_branch;
-  }
-  saveProject(project, env);
+  } else if (!project.tracker?.mode) project.tracker = { kind: 'local', location: projectBoardDir(entry.id, env), mode: 'sidecar' };
+  saveProject(project, env, { commit: false });
+  // commit state only when something durable changed (a last_seen bump is not worth a commit)
+  if (created) stateCommit(`project ${project.id}: registered ${project.name}`, env);
+  else if (changed || !existing) stateCommit(`project ${project.id}: clone added on ${hostname()}`, env);
   return { project, identity, created };
 }
 
@@ -162,5 +174,13 @@ export async function resolveProject(cwd = process.cwd(), { env } = {}) {
     }
   }
   const { project, created } = registerProject(identity.root, { legacy, env });
+  // v3-native deployment config lives in the sidecar (autodev init writes it)
+  if (!legacy && existsSync(projectDeploymentFile(project.id, env))) {
+    const { loadDeployment } = await import('./config/index.mjs');
+    try {
+      const r = await loadDeployment(identity.root, { strict: false, configPath: projectDeploymentFile(project.id, env) });
+      legacy = { ...r.cfg, configPath: r.configPath, localConfigPath: null, isLegacySplit: false, validation: r.validation, notes: r.notes, sidecar: true };
+    } catch (e) { legacy = { client_name: project.name, configPath: projectDeploymentFile(project.id, env), validation: { ok: false, errors: [e.message], warnings: [] }, notes: [], sidecar: true }; }
+  }
   return { identity, project, legacy, created };
 }

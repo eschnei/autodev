@@ -148,6 +148,7 @@ Milestone 1 (standalone Brain repo) may begin.
 | M6 | Model-neutral roles, persona store outside `~/.claude`, consent-gated install, Claude projection with a manifest | `tests/suite/agency.sh` |
 | M7 | Agency planning default; BrainGrid derived only from explicit config or legacy flag | `tests/suite/config.sh` |
 | M8 | Workflow state, story selection, next-action, Gate 1 / Gate 2 approve + reject with audit + event + verification | `tests/suite/workflow.sh` |
+| M5A | Sidecar state repo (registry, project metadata, boards, events; runtime ignored) committed on every mutation, private remote with fast-forward sync, one writer per project with explicit takeover, divergence surfaced not merged; `autodev init` writes a v3 deployment + board into the sidecar with the app repo byte-identical; legacy repo-local boards keep working; canonical `uid` on every board issue | `tests/suite/state.sh` |
 
 Still prose (owned by later M8 slices): the one-feature lock, PRD/breakdown authoring, development, self-review, QA angles, merge-verify mechanics, intake, backlog drain.
 

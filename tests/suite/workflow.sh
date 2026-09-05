@@ -73,7 +73,7 @@ check "approve AD-1: recorded by core BEFORE any model call" has_re 'recorded: G
 check "…the board shows it (stage + audit comment)"    bash -c "jq -e '.stage==\"breakdown\" and (.comments|last|.body|test(\"Gate 1 approved\"))' '$R2/.autodev/board/AD-1.json'"
 check "…then ONE bounded breakdown job went to the executor (not the old prose prompt)" bash -c "grep -c -- '^-p ' '$CLAUDE_STUB_LOG' | grep -qx 1 && grep -q 'run the breakdown for AD-1 per reference/breakdown.md' '$CLAUDE_STUB_LOG' && ! grep -q 'The operator approved' '$CLAUDE_STUB_LOG'"
 check "…verification line after the job"              has_re 'verify: [0-9]+ story\(ies\) now Ready for AI Dev'
-check "…event recorded under the sidecar project"      bash -c "id=\$(cd '$R2' && node '$CLI' status | grep -oE 'prj_[0-9A-Z]{26}'); cat \"$AUTODEV_HOME/projects/\$id/events/\"*.jsonl | grep -q '\"type\":\"gate.approved\"'"
+check "…event recorded under the sidecar project"      bash -c "id=\$(cd '$R2' && node '$CLI' status | grep -oE 'prj_[0-9A-Z]{26}'); cat \"$AUTODEV_HOME/state/projects/\$id/events/\"*.jsonl | grep -q '\"type\":\"gate.approved\"'"
 : > "$CLAUDE_STUB_LOG"
 OUT=$(cd "$R2" && node "$CLI" approve AD-2 2>&1); rc=$?
 check "approve at Gate 2: recorded, merge job dispatched, verify FAILS honestly (stub merged nothing)" bash -c "grep -q 'recorded: Gate 2 approved for AD-2' <<<\"\$0\" && grep -q 'job → claude: merge_story' <<<\"\$0\" && grep -q 'verify: AD-2 is in \"ready_for_human_review\", expected \"done\"' <<<\"\$0\"" "$OUT"
