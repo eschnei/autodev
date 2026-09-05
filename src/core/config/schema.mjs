@@ -266,7 +266,12 @@ function checkLeaf(field, value, path, out) {
     case 'string':  if (typeof value !== 'string') out.errors.push(`${at}: must be a string, got ${typeOf(value)}`); break;
     case 'boolean': if (typeof value !== 'boolean') out.errors.push(`${at}: must be true/false, got ${typeOf(value)} ${JSON.stringify(value)}`); break;
     case 'integer': if (!Number.isInteger(value)) out.errors.push(`${at}: must be an integer, got ${JSON.stringify(value)}`); break;
-    case 'enum':    if (!field.values.includes(value)) out.errors.push(`${at}: must be one of ${field.values.join(' | ')}, got ${JSON.stringify(value)}`); break;
+    case 'enum':
+      // v2 configs use "" to mean "unset — use the default" (init writes it for
+      // unanswered questions); accept it with a note rather than failing the deployment
+      if (value === '' && field.default !== undefined) { out.warnings.push(`${at}: empty — the default "${field.default}" applies`); break; }
+      if (!field.values.includes(value)) out.errors.push(`${at}: must be one of ${field.values.join(' | ')}, got ${JSON.stringify(value)}`);
+      break;
     case 'array':
       if (!Array.isArray(value)) { out.errors.push(`${at}: must be an array, got ${typeOf(value)}`); break; }
       value.forEach((v, i) => validateField(field.item, v, [...path, String(i)], out));
@@ -333,5 +338,11 @@ export function normalize(cfg) {
   if (!c.executor?.default) c.executor = { ...(c.executor || {}), default: 'claude' };
   if (!c.brain) c.brain = defaults().brain;
   if (c.tracker && !c.tracker.kind) { c.tracker.kind = 'linear'; notes.push('tracker.kind missing — pre-local configs mean linear'); }
+  // "" on an enum means "use the default" — resolve it so consumers never see ""
+  walk(SCHEMA, (path, f) => {
+    if (f.type !== 'enum' || f.default === undefined) return;
+    let o = c; for (const k of path.slice(0, -1)) { if (o == null || typeof o !== 'object') return; o = o[k]; }
+    if (o && typeof o === 'object' && o[path.at(-1)] === '') { o[path.at(-1)] = f.default; notes.push(`${path.join('.')}: empty — the default "${f.default}" applies`); }
+  });
   return { cfg: c, notes };
 }

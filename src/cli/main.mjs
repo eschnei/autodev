@@ -195,11 +195,14 @@ async function cmdAgents(ctx, sub) {
   ensureAgentsDirs();
   const store = new PersonaStore();
   const target = claudeAgentsDir();
+  // first contact: an empty store next to a populated executor dir means this machine
+  // predates the store — adopt (copy, never move or overwrite) before reporting
+  if (!store.list().length) { const got = store.importFrom(target); if (got.length) console.error(`agency: adopted ${got.length} persona(s) from ${target} into the store (one-time)`); }
   if (sub === 'sync') {
     const imported = store.importFrom(target);
     const proj = projectPersonas(cfg, store, { targetDir: target });
     console.log(`agency store: ${store.dir}`);
-    console.log(`adopted from ${target}: ${imported.length ? imported.join(', ') : 'nothing new'}`);
+    console.log(`adopted from ${target}: ${imported.length ? (imported.length <= 10 ? imported.join(', ') : `${imported.length} files`) : 'nothing new'}`);
     console.log(`projected → ${target}: ${proj.written.length} written · ${proj.updated.length} updated · ${proj.kept.length} kept · ${proj.missing.length} missing${proj.missing.length ? ` (${proj.missing.join(', ')})` : ''}`);
     return 0;
   }

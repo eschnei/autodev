@@ -54,7 +54,11 @@ jq '.review.delivery="draft_pr" | .execution.max_lanes="five"' "$V/.autodev/depl
 check_out "wrong type → error"                       'execution.max_lanes: must be an integer' bash -c "node '$CFGBIN' validate '$V'; true"
 jq '.execution.max_lanes=5 | .personas.auto_install="false"' "$V/.autodev/deployment.json" > "$V/t" && mv "$V/t" "$V/.autodev/deployment.json"
 check_out "string 'false' where a boolean belongs → error (fail closed, never coerced)" 'personas.auto_install: must be true/false' bash -c "node '$CFGBIN' validate '$V'; true"
-jq '.personas.auto_install=true | .my_custom={x:1} | .tracker._my_note="hi"' "$V/.autodev/deployment.json" > "$V/t" && mv "$V/t" "$V/.autodev/deployment.json"
+jq '.personas.auto_install=true | .qa.live_browser_driver=""' "$V/.autodev/deployment.json" > "$V/t" && mv "$V/t" "$V/.autodev/deployment.json"
+check_out "empty string on an enum = 'use the default' → note, not error (v2 init writes these)" '· qa.live_browser_driver: empty — the default "playwright_mcp" applies' bash -c "node '$CFGBIN' validate '$V'"
+check "…still exit 0"                                node "$CFGBIN" validate "$V"
+check_out "…normalize resolves it to the default"    '"live_browser_driver": "playwright_mcp"' node "$CFGBIN" normalize "$V"
+jq '.qa.live_browser_driver="playwright_mcp" | .my_custom={x:1} | .tracker._my_note="hi"' "$V/.autodev/deployment.json" > "$V/t" && mv "$V/t" "$V/.autodev/deployment.json"
 check_out "unknown key → warning, not error; _notes ignored" 'my_custom: unknown key' bash -c "node '$CFGBIN' validate '$V'"
 check "…still exit 0"                                node "$CFGBIN" validate "$V"
 S=$(mkrepo ScCo '.tracker.kind="shortcut" | .tracker.hierarchy="project"')
