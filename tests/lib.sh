@@ -91,7 +91,8 @@ mkrepo() {
   git -C "$repo" init -q
   mkdir -p "$repo/.autodev"
   RUNHOME=$(runhome "$repo"); mkdir -p "$RUNHOME"
-  jq --arg c "$client" ".client_name=\$c | .tracker.kind=\"local\" | .braingrid.enabled=false | $filter" \
+  # instance_label derived from client_name exactly like upgrade-config.sh does
+  jq --arg c "$client" ".client_name=\$c | .tracker.kind=\"local\" | .braingrid.enabled=false | .tracker.instance_label=(\"autodev:\" + (\$c | ascii_downcase | gsub(\"[^a-z0-9]+\"; \"-\") | gsub(\"^-+|-+\$\"; \"\"))) | $filter" \
     "$PLUGIN/reference/deployment.example.json" > "$repo/.autodev/deployment.json"
   printf '{"repo":{"local_path":"%s"},"runner":{"home_dir":"%s"}}\n' "$repo" "$RUNHOME" > "$repo/.autodev/deployment.local.json"
   printf '.autodev/deployment.local.json\n' > "$repo/.gitignore"

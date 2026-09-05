@@ -71,7 +71,10 @@ check "…with this repo's allowlist"                  bash -c "grep -q -- '--al
 : > "$CLAUDE_STUB_LOG"
 check "continue = one /autodev:loop job"            bash -c "cd '$L' && node '$CLI' continue >/dev/null && grep -q -- '-p /autodev:loop' '$CLAUDE_STUB_LOG'"
 : > "$CLAUDE_STUB_LOG"
-check "approve <id> proxies a gate decision naming the id" bash -c "cd '$L' && node '$CLI' approve AD-3 looks good >/dev/null && grep -q -- '-p The operator approved AD-3 — looks good' '$CLAUDE_STUB_LOG'"
+check_out "approve on a local board is deterministic: unknown issue → error, no model call" "AD-3: not found on the board" bash -c "cd '$L' && node '$CLI' approve AD-3 looks good 2>&1; true"
+check "…no executor call was made"                  bash -c "! grep -q . '$CLAUDE_STUB_LOG'"
+LIN=$(mkrepo LinProxy '.tracker.kind="linear"'); git -C "$LIN" add -A >/dev/null; git -C "$LIN" commit -qm init >/dev/null
+check "approve on an API tracker still proxies to the engine (until its core wrapper lands)" bash -c "cd '$LIN' && node '$CLI' approve ENG-3 looks good >/dev/null && grep -q -- '-p The operator approved ENG-3 — looks good' '$CLAUDE_STUB_LOG'"
 check_out "rate-limited executor → exit 75 + reason" "rate_limited" bash -c "cd '$L' && CLAUDE_STUB_MODE=limited node '$CLI' hello 2>&1; echo \"rc=\$?\""
 check "rate-limited exit code is 75"                bash -c "cd '$L' && CLAUDE_STUB_MODE=limited node '$CLI' hello >/dev/null 2>&1; [ \$? -eq 75 ]"
 check_out "unavailable executor → clear error"      "claude → unavailable" bash -c "cd '$L' && CLAUDE_STUB_MODE=fail node '$CLI' hello 2>&1; true"

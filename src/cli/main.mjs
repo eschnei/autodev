@@ -24,6 +24,8 @@ import { loadRoles } from '../agency/roles.mjs';
 import { PersonaStore, ensurePersonas } from '../agency/personas.mjs';
 import { ensureAgentsDirs } from '../core/paths.mjs';
 import { projectPersonas, claudeAgentsDir } from '../executors/claude/agents.mjs';
+import { readWorkflowState, nextAction, describeState } from '../core/workflow/state.mjs';
+import { approve as gateApprove, reject as gateReject, jobFor, GateError } from '../core/workflow/gates.mjs';
 import { headlessAllowlist, assertAllowlistInvariants } from '../core/permissions.mjs';
 import { tick } from '../core/tick.mjs';
 import { makeJob, getExecutor, listExecutors, hasExecutor } from '../executors/executor.mjs';
@@ -40,7 +42,10 @@ usage: autodev [command] [args]      (no command = interactive shell)
   continue | loop        one bounded unit of work (a heartbeat) through the executor
   tick <repo>            headless heartbeat for the timer (lock, pause/probe, digest)
   executor [name]        show or set this project's default executor
-  approve <id> [note]    record a human gate decision (proxied to the engine in v3.0)
+  approve <id> [note]    record a human gate decision (Gate 1 → breakdown, Gate 2 → merge);
+                         autoDev records it, then hands the model one bounded job
+  reject <id> <reason>   record a Gate 2 rejection → back to AI Development with the reason
+  next                   what the engine would do next, decided without a model
   agents [sync|install]  Agency roles + persona resolution; sync = adopt existing
                          ~/.claude/agents personas into the store and project the
                          store back out; install = fetch missing (consent-gated)
@@ -79,6 +84,11 @@ function banner(ctx) {
   lines.push(`Executor: ${ctx.executorId}${ctx.executor ? '' : '  (not registered)'}`);
   lines.push(`Authentication: ${ctx.executorAvailable ? 'subscription (local CLI found)' : `${ctx.executorId} CLI not found on PATH`}`);
   const board = boardSnapshot(ctx);
+  const tracker = ctx.legacy && ctx.identity ? localTracker(ctx) : null;
+  if (tracker) {
+    const st = readWorkflowState(tracker, ctx.legacy);
+    if (st.awaiting_human.length) lines.push(`Awaiting you: ${st.gates.gate1.map((i) => `Gate 1 ${i.id}`).concat(st.gates.gate2.map((i) => `Gate 2 ${i.id}`), st.blocked.map((i) => `Blocked ${i.id}`), st.clarifying.map((i) => `Clarifying ${i.id}`)).join(' · ')}`);
+  }
   if (ctx.legacy) {
     const v = ctx.legacy.validation;
     const cfgNote = v && !v.ok ? ` · config: ${v.errors.length} error(s) — run \`autodev doctor\`` : (v?.warnings?.length ? ` · config: ${v.warnings.length} warning(s)` : '');
@@ -111,6 +121,55 @@ async function runJob(ctx, task, role) {
   if (r.status === 'completed') { console.log(r.summary || '(no output)'); return 0; }
   console.error(`autodev: ${ctx.executorId} → ${r.status}${r.summary ? `: ${r.summary}` : ''}${r.reset_at ? ` (reset ${new Date(r.reset_at * 1000).toLocaleTimeString()})` : ''}`);
   return r.status === 'rate_limited' ? 75 : 1;
+}
+
+function localTracker(ctx) {
+  if (!ctx.legacy || (ctx.legacy.tracker?.kind || 'local') !== 'local') return null;
+  return new Tracker({ repoRoot: ctx.identity.root, configPath: ctx.legacy.configPath, cfg: ctx.legacy });
+}
+
+async function cmdNext(ctx) {
+  const tracker = localTracker(ctx);
+  if (!tracker) { console.error('autodev: next needs a local-tracker deployment (API trackers are read through the engine for now)'); return 1; }
+  const state = readWorkflowState(tracker, ctx.legacy);
+  const n = nextAction(state, ctx.legacy);
+  console.log(describeState(state, ctx.legacy));
+  console.log(`\nnext: ${n.action}${n.issues?.length ? ` (${n.issues.join(', ')})` : ''} — ${n.reason}`);
+  return 0;
+}
+
+// Gate decisions: deterministic on a local board (record → bounded job → verify);
+// proxied to the prose engine for API trackers until their core wrapper lands.
+async function cmdApprove(ctx, id, note) {
+  if (!id) { console.error('usage: autodev approve <issue-id> [note]'); return 2; }
+  const tracker = localTracker(ctx);
+  if (!tracker) return runJob(ctx, `The operator approved ${id}${note ? ` — ${note}` : ''}. Log the gate decision with an audit comment and advance it per the manual; do one bounded unit of work then stop.`, 'gate');
+  let decision;
+  try { decision = gateApprove({ tracker, projectId: ctx.project.id, issueId: id, by: process.env.USER, note }); }
+  catch (e) { if (e instanceof GateError) { console.error(`autodev: ${e.message}`); return 1; } throw e; }
+  console.log(`recorded: Gate ${decision.gate} approved for ${decision.issue}${decision.moved ? ` → ${decision.moved}` : ''} (event ${decision.event.id})`);
+  const job = jobFor(decision.next, decision.issue, ctx.legacy);
+  console.log(`job → ${ctx.executorId}: ${decision.next} (${job.role})`);
+  const rc = await runJob(ctx, job.task, job.role);
+  const after = tracker.issue(decision.issue);
+  const expect = decision.next === 'breakdown' ? null : 'done';
+  if (expect && after?.stage !== expect) console.error(`verify: ${decision.issue} is in "${after?.stage}", expected "${expect}" — the merge did not complete; see the board comments`);
+  else if (decision.next === 'breakdown') {
+    const state = readWorkflowState(tracker, ctx.legacy);
+    console.log(`verify: ${state.eligible.length} story(ies) now Ready for AI Dev · ${decision.issue} in "${after?.stage}"`);
+  } else console.log(`verify: ${decision.issue} is done`);
+  return rc;
+}
+
+async function cmdReject(ctx, id, reason) {
+  if (!id || !reason) { console.error('usage: autodev reject <issue-id> <reason>'); return 2; }
+  const tracker = localTracker(ctx);
+  if (!tracker) return runJob(ctx, `The operator rejected ${id} at its gate: ${reason}. Log the decision with an audit comment and move it back per the manual; do one bounded unit of work then stop.`, 'gate');
+  try {
+    const d = gateReject({ tracker, projectId: ctx.project.id, issueId: id, by: process.env.USER, reason });
+    console.log(`recorded: Gate ${d.gate} rejected for ${d.issue}${d.moved ? ` → ${d.moved}` : ''} (event ${d.event.id})`);
+    return 0;
+  } catch (e) { if (e instanceof GateError) { console.error(`autodev: ${e.message}`); return 1; } throw e; }
 }
 
 async function cmdTick(repo, log) {
@@ -166,7 +225,9 @@ async function dispatch(ctx, line) {
     case 'status': return cmdStatus(ctx);
     case 'executor': return cmdExecutor(ctx, rest[0]);
     case 'continue': case 'loop': return runJob(ctx, '/autodev:loop', 'loop');
-    case 'approve': return runJob(ctx, `The operator approved ${rest[0] || 'the pending gate'}${rest.length > 1 ? ` — ${rest.slice(1).join(' ')}` : ''}. Log the gate decision with an audit comment and advance it per the manual; do one bounded unit of work then stop.`, 'gate');
+    case 'approve': return cmdApprove(ctx, rest[0], rest.slice(1).join(' ') || undefined);
+    case 'reject': return cmdReject(ctx, rest[0], rest.slice(1).join(' ') || undefined);
+    case 'next': return cmdNext(ctx);
     case 'doctor': return cmdDoctor(ctx.identity?.root || process.cwd());
     case 'agents': return cmdAgents(ctx, rest[0]);
     case 'tick': return cmdTick(rest[0], (m) => console.log(m));
