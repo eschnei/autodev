@@ -37,7 +37,11 @@ autodev status     # one-shot
 Running `autodev` in a repo registers it in a **sidecar** project registry under
 `~/Library/Application Support/autoDev/` and writes nothing into the repository —
 `git status` stays clean. Existing `.autodev/deployment.json` deployments are read
-as-is. The design lives in [`docs/v3/decisions.md`](./docs/v3/decisions.md) and the
+as-is. With [Brain](https://github.com/eschnei/brain) configured (`brain.enabled`,
+`brain.url`; token from `$BRAIN_TOKEN`, `~/.config/autodev/brain.token`, or the
+macOS Keychain) every job gets the project's scoped memory in front of its task
+and leaves a handoff behind, so a different executor can continue the work; when
+Brain is unreachable autoDev says so and keeps working in degraded mode. The design lives in [`docs/v3/decisions.md`](./docs/v3/decisions.md) and the
 behavior the migration may not regress in
 [`docs/v3-compatibility-contract.md`](./docs/v3-compatibility-contract.md).
 

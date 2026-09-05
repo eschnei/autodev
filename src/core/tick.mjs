@@ -27,6 +27,8 @@ import { headlessAllowlist, assertAllowlistInvariants } from './permissions.mjs'
 import { loadDeployment } from './config/index.mjs';
 import { makeJob, getExecutor } from '../executors/executor.mjs';
 import '../executors/claude/index.mjs';
+import { resolveProject } from './project.mjs';
+import { brainStatus, ensureBrainProject, contextForJob, recordHandoff, describeBrain } from '../brain/index.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SCRIPTS = join(ROOT, 'scripts');
@@ -89,11 +91,20 @@ export async function tick(repo, { executorId, log = () => {}, env = process.env
       }
     }
 
+    // --- Brain (optional): context in front of the job, handoff after it ---
+    const ctx = await resolveProject(repo);
+    const brain = await brainStatus(cfg, ctx.project);
+    if (brain.state === 'connected') { try { await ensureBrainProject(brain, ctx, { log }); } catch (e) { brain.state = 'degraded'; brain.reason = `registration failed: ${e.message}`; } }
+    if (brain.state !== 'off') log(`tick: brain ${describeBrain(brain)}`);
+
     // --- the bounded unit of work, through the executor seam ---
     const allow = assertAllowlistInvariants(headlessAllowlist(cfg), cfg);
-    const job = makeJob({ role: 'loop', task: '/autodev:loop', cwd: repo, permissions: { allowed_tools: allow }, context: { config: configPath } });
-    log(`tick: ${executor.id} ← ${job.task} (${allow.length} permissions)`);
+    const job = makeJob({ role: 'loop', task: '/autodev:loop', cwd: repo, permissions: { allowed_tools: allow }, context: { config: configPath, branch: ctx.identity?.branch } });
+    const bc = await contextForJob(brain, ctx, { role: 'loop', executor: executor.id, branch: ctx.identity?.branch, log });
+    if (bc) { job.context.brain = { bundle_id: bc.bundle.id, memories: bc.bundle.memories.map((m) => ({ id: m.id, revision: m.revision })) }; job.task = `${bc.text}\n\n---\n\n${job.task}`; }
+    log(`tick: ${executor.id} ← /autodev:loop (${allow.length} permissions${bc ? `, brain context ${bc.bundle.id}` : ''})`);
     const result = await executor.execute(job);
+    await recordHandoff(brain, ctx, job, result, { log });
 
     if (result.stderr) appendFileSync(errLog, `${result.stderr}\n`);
     appendFileSync(join(runHome, 'logs', `${today()}.jsonl`),

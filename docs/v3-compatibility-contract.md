@@ -150,3 +150,12 @@ Milestone 1 (standalone Brain repo) may begin.
 | M8 | Workflow state, story selection, next-action, Gate 1 / Gate 2 approve + reject with audit + event + verification | `tests/suite/workflow.sh` |
 
 Still prose (owned by later M8 slices): the one-feature lock, PRD/breakdown authoring, development, self-review, QA angles, merge-verify mechanics, intake, backlog drain.
+
+## 7. Package 3 (M9–M13) — Brain
+
+| Milestone | Where | Mechanical |
+|---|---|---|
+| M9–M12 | the Brain repo (`eschnei/brain`, branch `feature/runtime`): SQLite store with migrations + pre-snapshots, scoped memory with states/visibility/provenance/revisions, promotion by human approval, relationship contracts (depth 1), versioned bearer-authenticated idempotent HTTP API, CLI, launchd install, backups, restore drill | 182 checks in Brain's own suite |
+| M13 | autoDev: `src/brain/client.mjs` (negotiation, machine-local token, idempotent writes) and `src/brain/index.mjs` (sidecar registration, context in front of every job with bundle id + memory revisions recorded, handoff after every job keyed by job id, gate decisions as human-provenance decisions, DEGRADED mode when unreachable, INCOMPATIBLE never misread) | `tests/suite/brain.sh` against a stub Brain that logs every request |
+
+Brain remains optional: `brain.enabled=false` is exactly v2 behavior (tested: zero Brain requests).

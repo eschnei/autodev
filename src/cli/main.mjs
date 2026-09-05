@@ -26,6 +26,7 @@ import { ensureAgentsDirs } from '../core/paths.mjs';
 import { projectPersonas, claudeAgentsDir } from '../executors/claude/agents.mjs';
 import { readWorkflowState, nextAction, describeState } from '../core/workflow/state.mjs';
 import { approve as gateApprove, reject as gateReject, jobFor, GateError } from '../core/workflow/gates.mjs';
+import { brainStatus, describeBrain, ensureBrainProject, contextForJob, recordHandoff, recordGateDecision } from '../brain/index.mjs';
 import { headlessAllowlist, assertAllowlistInvariants } from '../core/permissions.mjs';
 import { tick } from '../core/tick.mjs';
 import { makeJob, getExecutor, listExecutors, hasExecutor } from '../executors/executor.mjs';
@@ -46,6 +47,7 @@ usage: autodev [command] [args]      (no command = interactive shell)
                          autoDev records it, then hands the model one bounded job
   reject <id> <reason>   record a Gate 2 rejection → back to AI Development with the reason
   next                   what the engine would do next, decided without a model
+  brain [status|context [REQ]|search <q>|remember <text>]   the Brain connection (optional; degraded mode when unreachable)
   agents [sync|install]  Agency roles + persona resolution; sync = adopt existing
                          ~/.claude/agents personas into the store and project the
                          store back out; install = fetch missing (consent-gated)
@@ -61,6 +63,8 @@ async function context(cwd) {
   ctx.executorId = ctx.project?.executor?.default || 'claude';
   ctx.executor = hasExecutor(ctx.executorId) ? getExecutor(ctx.executorId) : null;
   ctx.executorAvailable = ctx.executor ? await ctx.executor.available() : false;
+  ctx.brain = ctx.legacy ? await brainStatus(ctx.legacy, ctx.project) : { state: 'off', reason: 'no deployment' };
+  if (ctx.brain.state === 'connected') { try { await ensureBrainProject(ctx.brain, ctx, { log: (m) => console.error(m) }); } catch (e) { ctx.brain = { state: 'degraded', url: ctx.brain.url, reason: `registration failed: ${e.message}` }; } }
   return ctx;
 }
 
@@ -78,7 +82,7 @@ function banner(ctx) {
   if (!ctx.identity) { lines.push('Project: (not a git repository)'); return lines.join('\n'); }
   lines.push(`Project: ${ctx.project.name}  (${ctx.project.id}${ctx.created ? ' — registered just now, sidecar' : ''})`);
   lines.push(`Branch: ${ctx.identity.branch || '(detached)'}`);
-  lines.push(`Brain: ${ctx.project.brain?.enabled ? ctx.project.brain.url : 'not configured'}`);
+  lines.push(`Brain: ${describeBrain(ctx.brain || { state: 'off' })}`);
   lines.push(`Agency: ${ctx.legacy ? 'ready (v2 personas)' : 'not configured'}`);
   lines.push('');
   lines.push(`Executor: ${ctx.executorId}${ctx.executor ? '' : '  (not registered)'}`);
@@ -116,8 +120,11 @@ async function runJob(ctx, task, role) {
   if (!ctx.executor) { console.error(`autodev: executor "${ctx.executorId}" is not registered`); return 1; }
   if (!ctx.legacy) { console.error('autodev: this repo has no autoDev deployment yet (no .autodev/deployment.json) — nothing to proxy to'); return 1; }
   const allow = assertAllowlistInvariants(headlessAllowlist(ctx.legacy), ctx.legacy);
-  const job = makeJob({ role, task, cwd: ctx.identity.root, project_id: ctx.project.id, permissions: { allowed_tools: allow } });
+  const job = makeJob({ role, task, cwd: ctx.identity.root, project_id: ctx.project.id, permissions: { allowed_tools: allow }, context: { branch: ctx.identity.branch } });
+  const bc = await contextForJob(ctx.brain, ctx, { role, executor: ctx.executorId, branch: ctx.identity.branch, log: (m) => console.error(m) });
+  if (bc) { job.context.brain = { bundle_id: bc.bundle.id, memories: bc.bundle.memories.map((m) => ({ id: m.id, revision: m.revision })) }; job.task = `${bc.text}\n\n---\n\n${job.task}`; }
   const r = await ctx.executor.execute(job);
+  await recordHandoff(ctx.brain, ctx, job, r, { log: (m) => console.error(m) });
   if (r.status === 'completed') { console.log(r.summary || '(no output)'); return 0; }
   console.error(`autodev: ${ctx.executorId} → ${r.status}${r.summary ? `: ${r.summary}` : ''}${r.reset_at ? ` (reset ${new Date(r.reset_at * 1000).toLocaleTimeString()})` : ''}`);
   return r.status === 'rate_limited' ? 75 : 1;
@@ -148,6 +155,7 @@ async function cmdApprove(ctx, id, note) {
   try { decision = gateApprove({ tracker, projectId: ctx.project.id, issueId: id, by: process.env.USER, note }); }
   catch (e) { if (e instanceof GateError) { console.error(`autodev: ${e.message}`); return 1; } throw e; }
   console.log(`recorded: Gate ${decision.gate} approved for ${decision.issue}${decision.moved ? ` → ${decision.moved}` : ''} (event ${decision.event.id})`);
+  await recordGateDecision(ctx.brain, ctx, decision, { log: (m) => console.error(m) });
   const job = jobFor(decision.next, decision.issue, ctx.legacy);
   console.log(`job → ${ctx.executorId}: ${decision.next} (${job.role})`);
   const rc = await runJob(ctx, job.task, job.role);
@@ -168,6 +176,7 @@ async function cmdReject(ctx, id, reason) {
   try {
     const d = gateReject({ tracker, projectId: ctx.project.id, issueId: id, by: process.env.USER, reason });
     console.log(`recorded: Gate ${d.gate} rejected for ${d.issue}${d.moved ? ` → ${d.moved}` : ''} (event ${d.event.id})`);
+    await recordGateDecision(ctx.brain, ctx, d, { log: (m) => console.error(m) });
     return 0;
   } catch (e) { if (e instanceof GateError) { console.error(`autodev: ${e.message}`); return 1; } throw e; }
 }
@@ -209,6 +218,16 @@ async function cmdAgents(ctx, sub) {
   return 0;
 }
 
+async function cmdBrain(ctx, sub, arg) {
+  const b = ctx.brain || { state: 'off' };
+  if (!sub || sub === 'status') { console.log(`Brain: ${describeBrain(b)}${b.token_source ? ` · token from ${b.token_source}` : ''}${b.capabilities ? ` · caps ${b.capabilities.join(',')}` : ''}`); return b.state === 'connected' || b.state === 'off' ? 0 : 1; }
+  if (b.state !== 'connected') { console.error(`autodev: Brain is ${describeBrain(b)}`); return 1; }
+  if (sub === 'context') { const c = await contextForJob(b, ctx, { role: 'operator', executor: 'cli', branch: ctx.identity?.branch, requirement_key: arg }); if (!c) { console.error('autodev: no context (project not registered?)'); return 1; } console.log(c.text); return 0; }
+  if (sub === 'search') { if (!arg) { console.error('usage: autodev brain search <query>'); return 2; } const rows = await b.client.search({ q: arg, project_id: b.project_id }); if (!rows.length) { console.log('(no matches in scope)'); return 0; } for (const m of rows) console.log(`${m.id}  [${m.scope.type}] ${m.state}/${m.type}: ${m.content.slice(0, 120)}`); return 0; }
+  if (sub === 'remember') { if (!arg) { console.error('usage: autodev brain remember <content>'); return 2; } const m = await b.client.remember({ project_id: b.project_id, content: arg, provenance: [{ type: 'human_decision', source: process.env.USER || 'operator' }] }); console.log(`${m.id} [${m.scope.type}] ${m.state}`); return 0; }
+  console.error(`autodev: unknown brain subcommand "${sub}" (status | context [REQ] | search <q> | remember <text>)`); return 2;
+}
+
 function cmdDoctor(cwd) {
   const r = spawnSync('bash', [join(ROOT, 'scripts', 'doctor.sh')], { cwd, stdio: 'inherit' });
   return r.status ?? 1;
@@ -230,6 +249,7 @@ async function dispatch(ctx, line) {
     case 'next': return cmdNext(ctx);
     case 'doctor': return cmdDoctor(ctx.identity?.root || process.cwd());
     case 'agents': return cmdAgents(ctx, rest[0]);
+    case 'brain': return cmdBrain(ctx, rest[0], rest.slice(1).join(' ') || undefined);
     case 'tick': return cmdTick(rest[0], (m) => console.log(m));
     default: return runJob(ctx, line.trim(), 'concierge');
   }
