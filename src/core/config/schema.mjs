@@ -118,6 +118,11 @@ export const SCHEMA = obj({
   executor: obj({
     default: str('claude', { doc: 'which registered executor runs jobs for this deployment (claude · codex …)' }),
   }),
+  controller: obj({
+    name:     str('marj', { doc: 'the conversational controller\'s product identity (Marj) — not a model identity' }),
+    provider: enm(['claude-code', 'none'], 'claude-code', { doc: 'who interprets natural language: claude-code (the local Claude Code CLI, subscription auth) or none (deterministic commands only)' }),
+    model:    str('default', { doc: 'provider model hint; default = the provider\'s own default' }),
+  }),
   brain: obj({
     enabled:    bool(false, { doc: 'connect to a Brain instance for persistent scoped memory (M13)' }),
     project_id: str(null, { identity: true, nullable: true, doc: 'Brain project id (prj_…); null until registered' }),

@@ -28,6 +28,7 @@ import { readWorkflowState, nextAction, describeState } from '../core/workflow/s
 import { approve as gateApprove, reject as gateReject, jobFor, GateError } from '../core/workflow/gates.mjs';
 import { brainStatus, describeBrain, ensureBrainProject, contextForJob, recordHandoff, recordGateDecision } from '../brain/index.mjs';
 import { StateRepo, StateError } from '../core/state.mjs';
+import { appendEvent } from '../core/events.mjs';
 import { plan as migratePlan, apply as migrateApply, renderReport } from '../migrate/index.mjs';
 import { defaults as schemaDefaults, validate as validateConfig } from '../core/config/schema.mjs';
 import { projectDeploymentFile, projectBoardDir, ensureProjectDirs } from '../core/paths.mjs';
@@ -37,6 +38,10 @@ import { tick } from '../core/tick.mjs';
 import { makeJob, getExecutor, listExecutors, hasExecutor } from '../executors/executor.mjs';
 import '../executors/claude/index.mjs';
 import '../executors/codex/index.mjs';
+import { ControlSession, OPERATIONS, attentionAcrossProjects } from '../control/api.mjs';
+import { serveStdio as serveMcp } from '../control/mcp.mjs';
+import { getController, hasController, listControllers, controllerContract, executeIntent, renderAudit, IntentError } from '../controller/controller.mjs';
+import { ClaudeCodeController } from '../controller/claude/index.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
@@ -62,7 +67,20 @@ usage: autodev [command] [args]      (no command = interactive shell)
                          store back out; install = fetch missing (consent-gated)
   doctor                 preflight the deployment (scripts/doctor.sh)
   version | help
-  <anything else>        natural language, one shot, through the executor
+  <anything else>        natural language → Marj (the controller) → structured autoDev actions
+
+Marj — the conversational controller (never the executor; autoDev decides):
+  marj [status|contract|setup]   controller status · the controller contract · how to make a Claude Code session Marj
+  mcp                    serve the Control API over MCP on stdio (a Claude Code session with it registered IS Marj)
+  control <op> [json]    call one Control API operation deterministically (autodev control get_blockers)
+  projects | attention   every registered project: what awaits you, what is in flight (cross-project)
+  blockers               what is waiting on a human here, with the why
+  new <title>            capture a request at New Request (nothing is built before Gate 1)
+  continue <id>          one bounded unit of work on an issue (never crosses a gate)
+  review <id>            an independent review job (fresh context) on an issue
+  verify [id]            run the configured test/lint/build and record the evidence
+  diff [branch] [base]   diff summary vs the base branch
+  pause [id] [reason] | resume [id]   pause the project (heartbeat skips it) or one issue
 
 in the shell: the same commands, plus  exit`;
 
@@ -96,6 +114,7 @@ function banner(ctx) {
   lines.push('');
   lines.push(`Executor: ${ctx.executorId}${ctx.executor ? '' : '  (not registered)'}`);
   lines.push(`Authentication: ${ctx.executorAvailable ? 'subscription (local CLI found)' : `${ctx.executorId} CLI not found on PATH`}`);
+  lines.push(`Controller: ${describeController(ctx)}`);
   const board = boardSnapshot(ctx);
   const tracker = ctx.legacy && ctx.identity ? localTracker(ctx) : null;
   if (tracker) {
@@ -111,6 +130,110 @@ function banner(ctx) {
     lines.push(`Status: ready — ${kind} "${ctx.legacy.client_name}" · tracker ${ctx.legacy.tracker?.kind || 'local'}${ctx.project.tracker?.mode === 'sidecar' ? ' (sidecar board)' : ''} · planning ${ctx.legacy.planning?.engine || 'agency'}${board ? ` · board: ${board}` : ''}${cfgNote}`);
   } else lines.push('Status: registered (sidecar); not configured yet — run `autodev init` (writes nothing into the repo)');
   return lines.join('\n');
+}
+
+// ---- controller (Marj) ---------------------------------------------------------------
+// The controller is resolved from deployment config (controller.*), overridable
+// with AUTODEV_CONTROLLER=none for scripts. Unavailable ≠ broken: every
+// deterministic command keeps working; only natural language needs Marj.
+function controllerConfig(ctx, env = process.env) {
+  const c = { name: 'marj', provider: 'claude-code', model: 'default', ...(ctx.legacy?.controller || {}) };
+  if (env.AUTODEV_CONTROLLER) c.provider = env.AUTODEV_CONTROLLER;
+  c.display = c.name.charAt(0).toUpperCase() + c.name.slice(1);
+  return c;
+}
+async function attachController(ctx) {
+  ctx.controller = controllerConfig(ctx);
+  ctx.controllerImpl = null; ctx.controllerAvailable = false; ctx.controllerReason = null;
+  if (ctx.controller.provider === 'none') { ctx.controllerReason = 'provider none (deterministic commands only)'; return ctx; }
+  if (!hasController(ctx.controller.provider)) { ctx.controllerReason = `provider "${ctx.controller.provider}" not registered (available: ${listControllers().join(', ')})`; return ctx; }
+  ctx.controllerImpl = ctx.controller.provider === 'claude-code' && ctx.controller.model && ctx.controller.model !== 'default' ? new ClaudeCodeController({ model: ctx.controller.model }) : getController(ctx.controller.provider);
+  ctx.controllerAvailable = await ctx.controllerImpl.available();
+  if (!ctx.controllerAvailable) ctx.controllerReason = `${ctx.controller.provider} CLI not found on PATH`;
+  return ctx;
+}
+function describeController(ctx) {
+  const c = ctx.controller || controllerConfig(ctx);
+  return ctx.controllerAvailable ? `${c.display} (${c.provider}${c.model && c.model !== 'default' ? ` · ${c.model}` : ''}) — say what you want; deterministic commands bypass it` : `unavailable — ${ctx.controllerReason || 'not configured'}; deterministic commands only (help)`;
+}
+function session(ctx, actor) { return new ControlSession({ cwd: ctx.identity?.root || process.cwd(), actor: actor || { kind: 'cli', name: process.env.USER || 'operator' } }); }
+
+// One conversational turn: input → intent (controller) → validated actions
+// (Control API) → audit (deterministic) → explanation (controller, optional).
+async function marjTurn(ctx, text, { history = [] } = {}) {
+  const c = ctx.controller;
+  if (!ctx.controllerAvailable) {
+    if (c.provider === 'none') return runJob(ctx, text, 'concierge');   // explicit opt-out: the pre-Marj concierge path (runJob reports its own preconditions)
+    console.error(`autodev: controller unavailable — ${ctx.controllerReason}. Deterministic commands still work: help`); return 1;
+  }
+  const t0 = Date.now();
+  const s = session(ctx, { kind: 'controller', name: c.display, provider: c.provider, user: process.env.USER || 'operator' });
+  const [status, blockers, projects] = await Promise.all([s.call('get_status'), s.call('get_blockers'), s.call('list_projects')]);
+  let intent;
+  try { intent = await ctx.controllerImpl.interpret({ text, name: c.display, user: process.env.USER || 'the developer', cwd: ctx.identity?.root, status: status.ok ? status.result : { error: status.error }, blockers: blockers.ok ? blockers.result : null, projects: projects.ok ? projects.result : null, history }); }
+  catch (e) { if (e instanceof IntentError) { console.error(`${c.display}: ${e.message}`); return 1; } throw e; }
+  console.log(`${c.display}: ${intent.goal || '(no goal stated)'}${intent.confidence != null && intent.confidence < 0.5 ? '  (low confidence)' : ''}`);
+  for (const q of intent.questions) console.log(`${c.display} asks: ${q}`);
+  if (!intent.steps.length) { appendControllerEvent(ctx, { text, intent, audit: null, ms: Date.now() - t0 }); return 0; }
+  console.log(`plan: ${intent.steps.map((st) => st.action + (Object.keys(st.params).length ? ` ${JSON.stringify(st.params)}` : '')).join(' → ')}${Object.keys(intent.constraints).length ? `  [${Object.keys(intent.constraints).join(', ')}]` : ''}`);
+  const audit = await executeIntent(intent, s, { log: (m) => console.error(m) });
+  const rendered = renderAudit(audit);
+  console.log(rendered);
+  appendControllerEvent(ctx, { text, intent, audit, ms: Date.now() - t0 });
+  if (process.env.AUTODEV_MARJ_EXPLAIN !== '0') { const said = await ctx.controllerImpl.respond({ name: c.display, text, intent, rendered, cwd: ctx.identity?.root }); if (said && said !== rendered) console.log(`${c.display}: ${said}`); }
+  return audit.stopped ? 1 : 0;
+}
+function appendControllerEvent(ctx, { text, intent, audit, ms }) {
+  if (!ctx.project) return;
+  const acc = (audit?.steps || []).filter((s) => s.result?.ok).map((s) => s.action), rej = (audit?.steps || []).filter((s) => s.rejected || (s.result && !s.result.ok)).map((s) => s.action);
+  try { appendEvent(ctx.project.id, { type: 'controller.turn', controller: ctx.controller.name, provider: ctx.controller.provider, model: ctx.controller.model, input: text.slice(0, 2000), intent: { goal: intent.goal, steps: intent.steps, constraints: intent.constraints, questions: intent.questions, confidence: intent.confidence }, accepted: acc, rejected: rej, jobs: (audit?.steps || []).map((s) => s.result?.result?.job_id).filter(Boolean), executor: ctx.executorId, stopped: audit?.stopped || null, ms }); } catch {}
+}
+
+function printResult(r, { pretty = true } = {}) {
+  if (!r.ok) { console.error(`autodev: ${r.error.message}${r.error.code ? ` [${r.error.code}]` : ''}`); return 1; }
+  const v = r.result;
+  console.log(typeof v === 'string' ? v : JSON.stringify(v, null, pretty ? 2 : 0));
+  return 0;
+}
+async function cmdControl(ctx, op, json) {
+  if (!op || op === 'list') { for (const [k, d] of Object.entries(OPERATIONS)) console.log(`${k.padEnd(22)} ${d.reads ? 'read  ' : 'action'} ${d.description}`); return 0; }
+  let params = {}; if (json) { try { params = JSON.parse(json); } catch { console.error('autodev: params must be JSON, e.g. \'{"id":"AD-3"}\''); return 2; } }
+  return printResult(await session(ctx).call(op, params));
+}
+async function cmdMarj(ctx, sub) {
+  const c = ctx.controller;
+  switch (sub || 'status') {
+    case 'status': console.log(`controller: ${c.display} · provider ${c.provider} · model ${c.model}\navailable: ${ctx.controllerAvailable ? 'yes' : `no — ${ctx.controllerReason}`}\ncapabilities: ${Object.keys(OPERATIONS).length} Control API operations (autodev control list)`); return 0;
+    case 'contract': console.log(controllerContract({ name: c.display, user: process.env.USER || 'the developer' })); return 0;
+    case 'setup': console.log(`Make a Claude Code session ${c.display} (bootstrap, PRD §32–34). Nothing is written into any repository.\n\n  1. once, user scope:   claude mcp add autodev -- autodev mcp\n  2. in any project:     claude      → the session sees the autoDev Control API tools + ${c.display}'s contract as server instructions\n  3. remote:             Claude Remote Control on the Mac mini steers that same session (autodev tick keeps running regardless)\n\nInside the session, \`${c.display}\` can only act through the Control API tools: reads are free, actions are validated and recorded by autoDev, human gates are never crossed without your explicit approve_gate.`); return 0;
+    default: console.error('usage: autodev marj [status|contract|setup]'); return 2;
+  }
+}
+async function cmdProjects() {
+  const rows = await attentionAcrossProjects();
+  if (!rows.length) { console.log('no projects registered on this machine'); return 0; }
+  for (const p of rows) {
+    if (!p.available) { console.log(`${p.name}: unavailable — ${p.reason}`); continue; }
+    const need = p.awaiting_human.map((i) => `${i.id} (${i.stage})`).join(', ');
+    console.log(`${p.name}${p.paused ? ' [paused]' : ''}: ${p.configured ? `${need ? `needs you: ${need}` : 'nothing waiting on you'} · in flight ${p.in_flight.length}${p.next ? ` · next ${p.next.action}` : ''}` : 'not configured (autodev init)'}`);
+  }
+  return 0;
+}
+async function cmdBlockers(ctx) {
+  const r = await session(ctx).call('get_blockers'); if (!r.ok) return printResult(r);
+  const b = r.result; const show = (label, arr) => { for (const i of arr) console.log(`${label} ${i.id} ${i.title}${i.why ? `\n    ${i.why.replace(/\n/g, ' ')}` : ''}`); };
+  show('Gate 1  ', b.gate1); show('Gate 2  ', b.gate2); show('Blocked ', b.blocked); show('Clarify ', b.clarifying);
+  if (![b.gate1, b.gate2, b.blocked, b.clarifying].some((a) => a.length)) console.log('nothing is waiting on you');
+  if (b.paused) console.log(`project paused by ${b.paused.by} since ${b.paused.at}${b.paused.reason ? ` — ${b.paused.reason}` : ''}`);
+  return 0;
+}
+async function cmdVerify(ctx, id) {
+  const r = await session(ctx).call('run_verification', id ? { id } : {}); if (!r.ok) return printResult(r);
+  const v = r.result;
+  for (const [k, x] of Object.entries(v.results)) console.log(`${k}: ${x.skipped ? 'skipped (not configured)' : x.ok ? `✓ ${x.command}` : `✗ exit ${x.exit_code} — ${x.command}\n${x.tail}`}`);
+  if (v.contamination.length) console.log(`contamination: ${v.contamination.join(', ')} present in a sidecar-mode repo`);
+  console.log(`verification: ${v.ok ? 'PASS' : 'FAIL'} (${v.branch} @ ${v.head})`);
+  return v.ok ? 0 : 1;
 }
 
 // ---- commands ---------------------------------------------------------------------
@@ -326,7 +449,18 @@ async function dispatch(ctx, parts) {
     case 'version': case '--version': case '-v': console.log(VERSION); return 0;
     case 'status': return cmdStatus(ctx);
     case 'executor': return cmdExecutor(ctx, rest[0]);
-    case 'continue': case 'loop': return runJob(ctx, '/autodev:loop', 'loop');
+    case 'continue': case 'loop': return rest[0] ? printResult(await session(ctx).call('continue_requirement', { id: rest[0], instructions: rest.slice(1).join(' ') || undefined })) : runJob(ctx, '/autodev:loop', 'loop');
+    case 'mcp': return serveMcp({ cwd: ctx.identity?.root || process.cwd(), name: ctx.controller.display, user: process.env.USER || 'the developer', version: VERSION }).then(() => 0);
+    case 'marj': return cmdMarj(ctx, rest[0]);
+    case 'control': return cmdControl(ctx, rest[0], rest.slice(1).join(' ') || undefined);
+    case 'projects': case 'attention': return cmdProjects();
+    case 'blockers': return cmdBlockers(ctx);
+    case 'new': return rest.length ? printResult(await session(ctx).call('start_requirement', { title: rest.join(' ') })) : (console.error('usage: autodev new <title>'), 2);
+    case 'review': return rest[0] ? printResult(await session(ctx).call('request_review', { id: rest[0] })) : (console.error('usage: autodev review <id>'), 2);
+    case 'verify': return cmdVerify(ctx, rest[0]);
+    case 'diff': return printResult(await session(ctx).call('get_diff_summary', { branch: rest[0], base: rest[1] }));
+    case 'pause': return printResult(await session(ctx).call('pause_requirement', /^[A-Za-z]+-\d+$/.test(rest[0] || '') ? { id: rest[0], reason: rest.slice(1).join(' ') || undefined } : { reason: rest.join(' ') || undefined }));
+    case 'resume': return printResult(await session(ctx).call('resume_requirement', rest[0] ? { id: rest[0] } : {}));
     case 'approve': return cmdApprove(ctx, rest[0], rest.slice(1).join(' ') || undefined);
     case 'reject': return cmdReject(ctx, rest[0], rest.slice(1).join(' ') || undefined);
     case 'next': return cmdNext(ctx);
@@ -337,20 +471,21 @@ async function dispatch(ctx, parts) {
     case 'state': return cmdState(ctx, rest[0], rest[1]);
     case 'brain': return cmdBrain(ctx, rest[0], rest.slice(1).join(' ') || undefined);
     case 'tick': return cmdTick(rest[0], (m) => console.log(m));
-    default: return runJob(ctx, line.trim(), 'concierge');
+    default: return marjTurn(ctx, line.trim(), { history: ctx.history || [] });
   }
 }
 
 async function shell(ctx) {
   console.log(banner(ctx));
   console.log('');
-  const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: '> ', terminal: process.stdin.isTTY === true });
+  const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: `${ctx.controllerAvailable ? ctx.controller.display : 'autodev'} > `, terminal: process.stdin.isTTY === true });
   rl.prompt();
-  let last = 0;
+  let last = 0; ctx.history = [];
   for await (const line of rl) {
     const t = line.trim().toLowerCase();
     if (t === 'exit' || t === 'quit' || t === 'q') break;
     try { last = await dispatch(ctx, line); } catch (e) { console.error(`autodev: ${e.message}`); last = 1; }
+    if (line.trim()) { ctx.history.push({ role: 'user', text: line.trim().slice(0, 500) }); ctx.history = ctx.history.slice(-12); }
     rl.prompt();
   }
   rl.close();
@@ -362,7 +497,7 @@ export async function main(argv) {
   if (cmd === 'help' || cmd === '--help' || cmd === '-h') { console.log(HELP); return 0; }
   if (cmd === 'version' || cmd === '--version' || cmd === '-v') { console.log(VERSION); return 0; }
   if (cmd === 'tick') return cmdTick(argv[1], (m) => console.error(m));
-  const ctx = await context(process.cwd());
+  const ctx = await attachController(await context(process.cwd()));
   if (!cmd) return shell(ctx);
   return dispatch(ctx, argv);
 }

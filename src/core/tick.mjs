@@ -85,6 +85,7 @@ export async function tick(repo, { executorId, log = () => {}, env = process.env
   try {
     touch(join(runHome, 'heartbeat'));
     const ctx = await resolveProject(repo);
+    if (ctx.project?.paused) { log(`tick: project paused by ${ctx.project.paused.by} since ${ctx.project.paused.at}${ctx.project.paused.reason ? ` — ${ctx.project.paused.reason}` : ''} (autodev resume)`); return 0; }
     const executor = getExecutor(executorId || ctx.project?.executor?.default || cfg.executor?.default || 'claude');
 
     // --- rate-limit gate: while paused, PROBE instead of trusting a recorded reset time ---

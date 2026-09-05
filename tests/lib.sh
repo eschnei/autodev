@@ -54,6 +54,9 @@ export STUBBIN="$SANDBOX/bin"; mkdir -p "$STUBBIN"
 export PATH="$STUBBIN:$PATH"
 export CLAUDE_STUB_LOG="${CLAUDE_STUB_LOG:-$SANDBOX/claude-calls.log}"
 export CLAUDE_STUB_MODE="${CLAUDE_STUB_MODE:-ok}"
+# Suites exercise the executor seam with plain natural language; Marj (the
+# controller) is opt-in per suite (tests/suite/marj.sh unsets this).
+export AUTODEV_CONTROLLER="${AUTODEV_CONTROLLER:-none}"
 
 # claude: records every argv line to $CLAUDE_STUB_LOG; behavior via $CLAUDE_STUB_MODE
 #   ok      -> {"result":"ok","is_error":false}
@@ -66,6 +69,10 @@ case "${CLAUDE_STUB_MODE:-ok}" in
   ok)      echo '{"type":"result","is_error":false,"result":"ok"}' ;;
   limited) echo '{"type":"result","is_error":true,"result":"You have hit your usage limit. Try again later.","reset_at_epoch":4102444800}' ;;
   fail)    exit 1 ;;
+  intent)  # Marj tests: interpret → $CLAUDE_STUB_INTENT (JSON); respond → a short line
+           if printf '%s' "$*" | grep -q 'Audit (data)'; then echo '{"type":"result","is_error":false,"result":"Marj: here is what happened."}';
+           else intent="${CLAUDE_STUB_INTENT:-}"; [ -n "$intent" ] || intent='{"goal":"status","steps":[{"action":"get_status"}]}'
+                jq -cn --arg r "$intent" '{type:"result",is_error:false,result:$r}'; fi ;;
   *)       echo '{"type":"result","is_error":false,"result":"ok"}' ;;
 esac
 EOF

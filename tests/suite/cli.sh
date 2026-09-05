@@ -69,7 +69,7 @@ check_out "banner shows the executor"                     "Executor: codex" bash
 (cd "$R" && node "$CLI" executor claude >/dev/null)
 
 echo "cli — proxying to the v2 engine through the executor seam:"
-L=$(mkrepo CliCo '.commands.test="npm test"'); git -C "$L" add -A >/dev/null; git -C "$L" commit -qm init >/dev/null
+L=$(mkrepo CliCo '.commands.test="npm test" | .controller.provider="none"'); git -C "$L" add -A >/dev/null; git -C "$L" commit -qm init >/dev/null
 check "registering a v2 repo leaves its git status clean too" bash -c "cd '$L' && node '$CLI' status >/dev/null && [ -z \"\$(git status --porcelain)\" ]"
 : > "$CLAUDE_STUB_LOG"
 check_out "natural language one-shot returns the executor's summary" "^ok$" bash -c "cd '$L' && node '$CLI' what is on the board"
@@ -85,7 +85,7 @@ check "approve on an API tracker still proxies to the engine (until its core wra
 check_out "rate-limited executor → exit 75 + reason" "rate_limited" bash -c "cd '$L' && CLAUDE_STUB_MODE=limited node '$CLI' hello 2>&1; echo \"rc=\$?\""
 check "rate-limited exit code is 75"                bash -c "cd '$L' && CLAUDE_STUB_MODE=limited node '$CLI' hello >/dev/null 2>&1; [ \$? -eq 75 ]"
 check_out "unavailable executor → clear error"      "claude → unavailable" bash -c "cd '$L' && CLAUDE_STUB_MODE=fail node '$CLI' hello 2>&1; true"
-check_out "no v2 deployment → refuses to proxy"     "no autoDev deployment yet" bash -c "cd '$R' && node '$CLI' hello 2>&1; true"
+check_out "no v2 deployment → refuses to proxy"     "no autoDev deployment yet" bash -c "cd '$R' && AUTODEV_CONTROLLER=none node '$CLI' hello 2>&1; true"
 check "banner on a v2 repo shows the deployment + tracker + board" bash -c "cd '$L' && node '$PLUGIN/scripts/tracker.mjs' create-issue --title t >/dev/null && node '$CLI' status | grep -q 'v2 deployment \"CliCo\" · tracker local · planning agency · board: New Request: 1'"
 BADCFG=$(mkrepo BadCfgCo '.review.delivery="carrier-pigeon"'); git -C "$BADCFG" add -A >/dev/null; git -C "$BADCFG" commit -qm init >/dev/null
 check_out "banner surfaces config errors instead of crashing" "config: 1 error\(s\) — run .autodev doctor." bash -c "cd '$BADCFG' && node '$CLI' status"

@@ -468,6 +468,12 @@
     "default": "claude",
     "_default_note": "v3: which registered executor runs the engine's jobs — the model runtime is interchangeable (claude today; codex when its adapter lands). Every vendor CLI call lives inside its executor adapter; switch with `autodev executor <name>`."
   },
+  "controller": {
+    "name": "marj",
+    "provider": "claude-code",
+    "model": "default",
+    "_note": "v3: Marj is the conversational controller — it interprets what you say and asks autoDev for structured actions through the Control API; autoDev decides. provider none = deterministic commands only. Executors (executor.default) do the work; the controller never does."
+  },
   "brain": {
     "enabled": false,
     "project_id": null,
