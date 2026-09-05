@@ -14,19 +14,24 @@ pull request before merging).
 
 ## 0. Install the `autodev` CLI (v3)
 
-Since v3 the tick body lives in the autoDev checkout (`src/core/tick.mjs`) and
-reaches the model only through the executor adapter; `devloop-tick.sh` is a thin
-wrapper that calls `autodev tick <repo>`. The stable copy in `~/.autodev/bin/` finds
-the CLI on `PATH`, so link it once from the autoDev checkout:
+Since v3 the tick body lives in the autoDev tree (`src/core/tick.mjs`) and reaches
+the model only through the executor adapter; `devloop-tick.sh` is a thin wrapper
+that runs `autodev tick <repo>`. The stable copy in `~/.autodev/bin/` finds the CLI
+by itself, in this order: `autodev` on `PATH`, the installed plugin's recorded path
+(`~/.claude/plugins/installed_plugins.json`), the newest versioned plugin cache dir.
+**Plugin users need to do nothing** — an auto-updated plugin is found automatically.
+
+Running from a git checkout instead (no plugin)? Link the CLI once:
 
 ```bash
 cd /path/to/autodev && npm link      # puts `autodev` on PATH (e.g. /opt/homebrew/bin)
 autodev version
 ```
 
-The plist template already exports a `PATH` that includes `/opt/homebrew/bin` and
+The plist template exports a `PATH` that includes `/opt/homebrew/bin` and
 `/usr/local/bin`; if `npm link` put the binary elsewhere (`npm prefix -g`), add that
-`bin/` to the plist's `PATH`.
+`bin/` to the plist's `PATH`. `$AUTODEV_CLI=/path/to/bin/autodev.mjs` overrides the
+lookup for unusual layouts.
 
 ## 1. Copy the scripts to a stable path
 

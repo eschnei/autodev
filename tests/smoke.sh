@@ -440,7 +440,7 @@ cp "$PLUGIN/scripts/"{devloop-tick.sh,watchdog.sh,notify.sh} "$NOLIB/"
 # devloop-tick.sh is a thin wrapper since v3: alone, it fails on the missing CLI instead.
 for s in devloop-tick watchdog; do
   check "$s.sh fails loudly when copied without its siblings" bash -c \
-    "out=\$(PATH='$STUBBIN:/usr/bin:/bin' bash '$NOLIB/$s.sh' '$NOLIBR' 2>&1); rc=\$?; [[ \$rc -ne 0 ]] && printf '%s' \"\$out\" | grep -qE 'missing lib/config.sh|autodev CLI is not installed'"
+    "out=\$(PATH='$STUBBIN:/usr/bin:/bin' bash '$NOLIB/$s.sh' '$NOLIBR' 2>&1); rc=\$?; [[ \$rc -ne 0 ]] && printf '%s' \"\$out\" | grep -qE 'missing lib/config.sh|autodev CLI was not found'"
 done
 check "notify.sh fails loudly when lib/config.sh isn't a sibling" bash -c \
   "out=\$(bash '$NOLIB/notify.sh' '$NOLIBR' stalled 60 2>&1); rc=\$?; [[ \$rc -ne 0 ]] && printf '%s' \"\$out\" | grep -q 'missing lib/config.sh'"

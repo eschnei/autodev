@@ -94,6 +94,33 @@ check "tick logs progress to stderr, nothing to stdout" bash -c "out=\$(node '$C
 check_out "tick without a repo → usage, exit 2"     "usage: autodev tick" bash -c "node '$CLI' tick 2>&1; true"
 check_out "tick on an unconfigured repo → clear error" "no .*deployment.json" bash -c "node '$CLI' tick '$R' 2>&1; true"
 check "devloop-tick.sh delegates to the CLI (no claude call of its own)" bash -c "! grep -qE 'claude (-p|--)' '$PLUGIN/scripts/devloop-tick.sh'"
+
+echo "cli — the stable ~/.autodev/bin copy of devloop-tick.sh finds the CLI on its own (PRD §54):"
+# A lone copy of the wrapper (no sibling bin/), no `autodev` on PATH, and a fake
+# ~/.claude/plugins layout. Each candidate CLI is a stub that records which one ran.
+LONE=$(mktemp -d "$SANDBOX/lone.XXXXXX"); cp "$PLUGIN/scripts/devloop-tick.sh" "$LONE/"
+PL=$(mktemp -d "$SANDBOX/plugins.XXXXXX")
+mkcli() { mkdir -p "$(dirname "$1")"; printf '#!/usr/bin/env node\nimport { appendFileSync } from "node:fs";\nappendFileSync(process.env.CLI_PICK_LOG, "%s " + process.argv.slice(2).join(" ") + "\\n");\n' "$2" > "$1"; }
+export CLI_PICK_LOG="$SANDBOX/cli-pick.log"
+mkcli "$PL/cache/autodev-marketplace/autodev/2.3.0/bin/autodev.mjs" cache-2.3.0
+mkcli "$PL/cache/autodev-marketplace/autodev/2.10.0/bin/autodev.mjs" cache-2.10.0
+mkcli "$PL/cache/autodev-marketplace/autodev/2.4.0/bin/autodev.mjs" cache-2.4.0
+# a PATH with node but WITHOUT the developer's npm-linked `autodev` (node's own bin dir
+# is where npm link puts it, so expose node through a private symlink instead)
+mkdir -p "$SANDBOX/nodebin"; ln -sf "$(command -v node)" "$SANDBOX/nodebin/node"
+NOPATH="$STUBBIN:$SANDBOX/nodebin:/usr/bin:/bin"
+: > "$CLI_PICK_LOG"
+check "no installed_plugins.json → newest versioned cache dir wins (semver, not lexical)" bash -c "PATH='$NOPATH' CLAUDE_PLUGINS_DIR='$PL' bash '$LONE/devloop-tick.sh' '$L' && grep -q '^cache-2.10.0 tick $L$' '$CLI_PICK_LOG'"
+mkcli "$PL/cache/autodev-marketplace/autodev/9.9.9/bin/autodev.mjs" recorded
+printf '{"version":2,"plugins":{"autodev@autodev-marketplace":[{"installPath":"%s/cache/autodev-marketplace/autodev/9.9.9","version":"9.9.9"}]}}\n' "$PL" > "$PL/installed_plugins.json"
+: > "$CLI_PICK_LOG"
+check "installed_plugins.json recorded path wins over the glob" bash -c "PATH='$NOPATH' CLAUDE_PLUGINS_DIR='$PL' bash '$LONE/devloop-tick.sh' '$L' && grep -q '^recorded tick' '$CLI_PICK_LOG'"
+mkcli "$SANDBOX/override/autodev.mjs" override
+: > "$CLI_PICK_LOG"
+check "\$AUTODEV_CLI overrides everything"          bash -c "PATH='$NOPATH' CLAUDE_PLUGINS_DIR='$PL' AUTODEV_CLI='$SANDBOX/override/autodev.mjs' bash '$LONE/devloop-tick.sh' '$L' && grep -q '^override tick' '$CLI_PICK_LOG'"
+EMPTY=$(mktemp -d "$SANDBOX/noplugins.XXXXXX")
+check_out "nothing found → loud failure naming the fixes" "autodev CLI was not found.*npm link" bash -c "PATH='$NOPATH' CLAUDE_PLUGINS_DIR='$EMPTY' bash '$LONE/devloop-tick.sh' '$L' 2>&1; true"
+check "nothing found → exit 1"                      bash -c "PATH='$NOPATH' CLAUDE_PLUGINS_DIR='$EMPTY' bash '$LONE/devloop-tick.sh' '$L' >/dev/null 2>&1; [ \$? -eq 1 ]"
 check "no vendor CLI invocation anywhere in src/core or src/cli" bash -c "! grep -rnE \"spawn[a-zA-Z]*\\(['\\\"](claude|codex)|\\bclaude -p|exec\\(['\\\"]claude\" '$PLUGIN/src/core' '$PLUGIN/src/cli'"
 
 exit $FAIL
