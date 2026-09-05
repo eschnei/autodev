@@ -50,6 +50,30 @@ check "assertAllowlistInvariants rejects gh pr merge" bash -c "! node --input-ty
 check "assertAllowlistInvariants rejects a default-branch push" bash -c "! node --input-type=module -e \"import {assertAllowlistInvariants} from '$SRC/core/permissions.mjs'; assertAllowlistInvariants(['Bash(git push origin main)'],{repo:{default_branch:'main'}})\" 2>/dev/null"
 check "assertAllowlistInvariants passes the real list" n "import {headlessAllowlist,assertAllowlistInvariants} from '$SRC/core/permissions.mjs'; assertAllowlistInvariants(headlessAllowlist($CFG), $CFG)"
 
+echo "core tracker wrapper (reads direct, writes through the facade):"
+TR=$(mkrepo TrkCo '.tracker.instance_label="autodev:trkco"')
+TJS="import {Tracker} from '$SRC/core/tracker.mjs'; const t=new Tracker({repoRoot:'$TR', configPath:'$TR/.autodev/deployment.json', cfg: JSON.parse(require('node:fs').readFileSync('$TR/.autodev/deployment.json','utf8'))});"
+TJS="import {Tracker} from '$SRC/core/tracker.mjs'; import {readFileSync} from 'node:fs'; const t=new Tracker({repoRoot:'$TR', configPath:'$TR/.autodev/deployment.json', cfg: JSON.parse(readFileSync('$TR/.autodev/deployment.json','utf8'))});"
+check "empty board reads as []"                     n "$TJS if(t.readIssues().length!==0) throw 'nonempty'"
+check "createIssue returns the id (via the facade)"  n "$TJS const id=t.createIssue({title:'first', labels:['ai-eligible','autodev:trkco']}); if(id!=='AD-1') throw id"
+check "move + note goes through the facade (history + comment recorded)" n "$TJS t.move('AD-1','ai_development','go'); const i=t.issue('AD-1'); if(i.stage!=='ai_development'||i.comments.at(-1).body!=='go'||i.history.at(-1).to!=='ai_development') throw JSON.stringify(i)"
+check "ownIssues filters to the instance label (principle 10)" n "$TJS t.createIssue({title:'foreign'}); if(t.readIssues().length!==2) throw 'all'; const own=t.ownIssues(); if(own.length!==1||own[0].id!=='AD-1') throw JSON.stringify(own)"
+check "inStage uses own lane"                       n "$TJS t.createIssue({title:'mine2', stage:'ai_qa', labels:['autodev:trkco']}); const s=t.inStage('ai_qa'); if(s.length!==1||s[0].title!=='mine2') throw JSON.stringify(s)"
+check "no label configured → every issue is own"    n "import {Tracker} from '$SRC/core/tracker.mjs'; const t=new Tracker({repoRoot:'$TR', configPath:'$TR/.autodev/deployment.json', cfg:{tracker:{kind:'local'}}}); if(t.ownIssues().length!==3) throw t.ownIssues().length"
+check "facade errors surface as TrackerError"       n "$TJS try { t.move('AD-1','nope'); throw new Error('no throw') } catch(e){ if(e.constructor.name!=='TrackerError'||!/unknown stage key/.test(e.message)) throw e }"
+check "direct reads refuse non-local kinds"         n "import {Tracker} from '$SRC/core/tracker.mjs'; const t=new Tracker({repoRoot:'$TR', cfg:{tracker:{kind:'linear'}}}); try { t.readIssues(); throw new Error('no throw') } catch(e){ if(!/tracker.kind=local/.test(e.message)) throw e }"
+check "readIssues ignores _projects.json + dotfiles" n "$TJS import {writeFileSync} from 'node:fs'; writeFileSync('$TR/.autodev/board/_projects.json','{}'); writeFileSync('$TR/.autodev/board/.mirror-queue.jsonl',''); if(t.readIssues().length!==3) throw t.readIssues().length"
+
+echo "core git wrapper:"
+G=$(mktemp -d "$SANDBOX/g.XXXXXX"); git -C "$G" init -q; echo a > "$G/a"; git -C "$G" add -A; git -C "$G" commit -qm one
+GJS="import * as g from '$SRC/core/git.mjs';"
+check "toplevel / currentBranch / headSha / isClean" n "$GJS const b=g.currentBranch('$G'); if(!['main','master'].includes(b)) throw b; if(g.toplevel('$G')!=='$(cd "$G" && pwd -P)') throw g.toplevel('$G'); if(g.headSha('$G').length!==40) throw 'sha'; if(!g.isClean('$G')) throw 'dirty'"
+check "read helpers return null outside a repo, never throw" n "$GJS if(g.currentBranch('$SANDBOX')!==null||g.headSha('$SANDBOX')!==null) throw 'not null'"
+check "worktreeAdd creates the branch + worktree; worktreeList sees it" n "$GJS import {existsSync} from 'node:fs'; g.worktreeAdd('$G','$G-wt','autodev/sc-1/x'); if(!existsSync('$G-wt/a')) throw 'no checkout'; const w=g.worktreeList('$G').find(x=>x.branch==='autodev/sc-1/x'); if(!w) throw JSON.stringify(g.worktreeList('$G'))"
+check "commitsAhead / mergedInto"                   n "$GJS import {writeFileSync} from 'node:fs'; import {execSync} from 'node:child_process'; writeFileSync('$G-wt/b','b'); execSync('git add -A && git commit -qm two', {cwd:'$G-wt', env:process.env}); const base=g.currentBranch('$G'); const ahead=g.commitsAhead('$G','autodev/sc-1/x',base); if(ahead.length!==1||ahead[0].subject!=='two') throw JSON.stringify(ahead); if(g.mergedInto('$G','autodev/sc-1/x',base)) throw 'merged?'; execSync('git merge -q --squash autodev/sc-1/x && git commit -qm sq', {cwd:'$G', env:process.env}); if(g.commitsAhead('$G',base,'autodev/sc-1/x').length!==1) throw 'squash'"
+check "worktreeRemove"                              n "$GJS import {existsSync} from 'node:fs'; g.worktreeRemove('$G','$G-wt',{force:true}); if(existsSync('$G-wt')) throw 'still there'; if(g.worktreeList('$G').length!==1) throw 'list'"
+check "mutating helpers throw GitError"             n "$GJS try { g.worktreeRemove('$G','/nonexistent/wt'); throw new Error('no throw') } catch(e){ if(e.constructor.name!=='GitError') throw e }"
+
 echo "package manifest:"
 check "package.json version == plugin.json version (one release number)" bash -c "[ \"\$(jq -r .version '$PLUGIN/package.json')\" = \"\$(jq -r .version '$PLUGIN/.claude-plugin/plugin.json')\" ]"
 check "bin → bin/autodev.mjs, executable"      bash -c "[ \"\$(jq -r '.bin.autodev' '$PLUGIN/package.json')\" = ./bin/autodev.mjs ] && test -x '$PLUGIN/bin/autodev.mjs'"

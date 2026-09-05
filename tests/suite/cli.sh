@@ -76,7 +76,10 @@ check_out "rate-limited executor → exit 75 + reason" "rate_limited" bash -c "c
 check "rate-limited exit code is 75"                bash -c "cd '$L' && CLAUDE_STUB_MODE=limited node '$CLI' hello >/dev/null 2>&1; [ \$? -eq 75 ]"
 check_out "unavailable executor → clear error"      "claude → unavailable" bash -c "cd '$L' && CLAUDE_STUB_MODE=fail node '$CLI' hello 2>&1; true"
 check_out "no v2 deployment → refuses to proxy"     "no autoDev deployment yet" bash -c "cd '$R' && node '$CLI' hello 2>&1; true"
-check "banner on a v2 repo shows the deployment + tracker + board" bash -c "cd '$L' && node '$PLUGIN/scripts/tracker.mjs' create-issue --title t >/dev/null && node '$CLI' status | grep -q 'v2 deployment \"CliCo\" · tracker local · board: New Request: 1'"
+check "banner on a v2 repo shows the deployment + tracker + board" bash -c "cd '$L' && node '$PLUGIN/scripts/tracker.mjs' create-issue --title t >/dev/null && node '$CLI' status | grep -q 'v2 deployment \"CliCo\" · tracker local · planning agency · board: New Request: 1'"
+BADCFG=$(mkrepo BadCfgCo '.review.delivery="carrier-pigeon"'); git -C "$BADCFG" add -A >/dev/null; git -C "$BADCFG" commit -qm init >/dev/null
+check_out "banner surfaces config errors instead of crashing" "config: 1 error\(s\) — run .autodev doctor." bash -c "cd '$BADCFG' && node '$CLI' status"
+check_out "tick refuses an invalid config loudly (fail closed)" "review.delivery: must be one of" bash -c "node '$CLI' tick '$BADCFG' 2>&1; true"
 check "legacy deployment recorded on the project (read, never modified)" bash -c "id=\$(cd '$L' && node '$CLI' status | grep -oE 'prj_[0-9A-Z]{26}'); jq -e --arg p '$L/.autodev/deployment.json' '.legacy.deployment_json==\$p and .legacy.client_name==\"CliCo\" and .tracker.kind==\"local\"' \"$AUTODEV_HOME/projects/\$id/project.json\""
 
 echo "cli — interactive shell:"

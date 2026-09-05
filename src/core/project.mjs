@@ -151,10 +151,15 @@ export async function resolveProject(cwd = process.cwd(), { env } = {}) {
   let legacy = null;
   const legacyPath = join(identity.root, '.autodev', 'deployment.json');
   if (existsSync(legacyPath)) {
-    const { loadConfig } = await import('../../scripts/lib/config.mjs');
-    const prev = process.cwd();
-    try { process.chdir(identity.root); const r = loadConfig(); legacy = r.cfg ? { ...r.cfg, configPath: r.configPath, localConfigPath: r.localConfigPath, isLegacySplit: r.isLegacySplit } : null; }
-    finally { process.chdir(prev); }
+    // normalized + validated, but never blocking registration on a bad file — the
+    // banner reports the errors and `autodev doctor` explains them
+    const { loadDeployment } = await import('./config/index.mjs');
+    try {
+      const r = await loadDeployment(identity.root, { strict: false });
+      legacy = { ...r.cfg, configPath: r.configPath, localConfigPath: r.localConfigPath, isLegacySplit: r.isLegacySplit, validation: r.validation, notes: r.notes };
+    } catch (e) {
+      legacy = { client_name: null, configPath: legacyPath, validation: { ok: false, errors: [e.message], warnings: [] }, notes: [] };
+    }
   }
   const { project, created } = registerProject(identity.root, { legacy, env });
   return { identity, project, legacy, created };

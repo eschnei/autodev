@@ -24,6 +24,7 @@ import { homedir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { headlessAllowlist, assertAllowlistInvariants } from './permissions.mjs';
+import { loadDeployment } from './config/index.mjs';
 import { makeJob, getExecutor } from '../executors/executor.mjs';
 import '../executors/claude/index.mjs';
 
@@ -34,19 +35,11 @@ function touch(p) { try { const t = new Date(); utimesSync(p, t, t); } catch { c
 function pidAlive(pid) { if (!pid) return false; try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } }
 function today() { return new Date().toISOString().slice(0, 10); }
 
+// Schema-validated, legacy-normalized config (src/core/config). NO_CONFIG /
+// INVALID_CONFIG surface as ConfigError codes for the wrapper to report loudly.
 export async function loadRepoConfig(repo) {
-  const config = join(repo, '.autodev', 'deployment.json');
-  if (!existsSync(config)) throw Object.assign(new Error(`no ${config}`), { code: 'NO_CONFIG' });
-  const { loadConfig } = await import('../../scripts/lib/config.mjs');
-  const prevEnv = process.env.AUTODEV_CONFIG;
-  process.env.AUTODEV_CONFIG = config;
-  try {
-    const r = loadConfig();
-    if (!r.cfg) throw Object.assign(new Error(`no ${config}`), { code: 'NO_CONFIG' });
-    return { cfg: r.cfg, configPath: config };
-  } finally {
-    if (prevEnv === undefined) delete process.env.AUTODEV_CONFIG; else process.env.AUTODEV_CONFIG = prevEnv;
-  }
+  const { cfg, configPath } = await loadDeployment(repo);
+  return { cfg, configPath };
 }
 
 export function runnerHome(cfg) {

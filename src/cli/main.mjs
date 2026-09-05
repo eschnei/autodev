@@ -14,11 +14,12 @@
 // under the sidecar data root — `git status` stays clean (decision D2 / G9).
 
 import { createInterface } from 'node:readline';
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { resolveProject, saveProject } from '../core/project.mjs';
+import { Tracker } from '../core/tracker.mjs';
 import { headlessAllowlist, assertAllowlistInvariants } from '../core/permissions.mjs';
 import { tick } from '../core/tick.mjs';
 import { makeJob, getExecutor, listExecutors, hasExecutor } from '../executors/executor.mjs';
@@ -52,13 +53,11 @@ async function context(cwd) {
 }
 
 function boardSnapshot(ctx) {
-  const loc = ctx.project?.tracker?.location;
-  if (!loc || !existsSync(loc)) return null;
+  if (!ctx.legacy || (ctx.legacy.tracker?.kind || 'local') !== 'local') return null;
+  const tracker = new Tracker({ repoRoot: ctx.identity.root, configPath: ctx.legacy.configPath, cfg: ctx.legacy });
   const counts = {};
-  for (const f of readdirSync(loc).filter((x) => x.endsWith('.json') && !x.startsWith('_'))) {
-    try { const i = JSON.parse(readFileSync(join(loc, f), 'utf8')); counts[i.stage] = (counts[i.stage] || 0) + 1; } catch {}
-  }
-  const names = ctx.legacy?.tracker?.statuses || {};
+  for (const i of tracker.readIssues()) counts[i.stage] = (counts[i.stage] || 0) + 1;
+  const names = ctx.legacy.tracker?.statuses || {};
   return Object.entries(counts).map(([k, n]) => `${names[k]?.name || k}: ${n}`).join(' · ') || 'empty';
 }
 
@@ -73,8 +72,11 @@ function banner(ctx) {
   lines.push(`Executor: ${ctx.executorId}${ctx.executor ? '' : '  (not registered)'}`);
   lines.push(`Authentication: ${ctx.executorAvailable ? 'subscription (local CLI found)' : `${ctx.executorId} CLI not found on PATH`}`);
   const board = boardSnapshot(ctx);
-  if (ctx.legacy) lines.push(`Status: ready — v2 deployment "${ctx.legacy.client_name}" · tracker ${ctx.legacy.tracker?.kind || 'linear'}${board ? ` · board: ${board}` : ''}`);
-  else lines.push('Status: registered (sidecar); no v2 deployment here — run /autodev:init in Claude Code until v3 init lands (M5A)');
+  if (ctx.legacy) {
+    const v = ctx.legacy.validation;
+    const cfgNote = v && !v.ok ? ` · config: ${v.errors.length} error(s) — run \`autodev doctor\`` : (v?.warnings?.length ? ` · config: ${v.warnings.length} warning(s)` : '');
+    lines.push(`Status: ready — v2 deployment "${ctx.legacy.client_name}" · tracker ${ctx.legacy.tracker?.kind || 'local'} · planning ${ctx.legacy.planning?.engine || 'agency'}${board ? ` · board: ${board}` : ''}${cfgNote}`);
+  } else lines.push('Status: registered (sidecar); no v2 deployment here — run /autodev:init in Claude Code until v3 init lands (M5A)');
   return lines.join('\n');
 }
 
@@ -108,7 +110,7 @@ async function cmdTick(repo, log) {
   if (!repo) { console.error('usage: autodev tick <repo-path>'); return 2; }
   try { return await tick(repo, { log }); }
   catch (e) {
-    if (e.code === 'NO_CONFIG') { console.error(`autodev tick: ${e.message}`); return 1; }
+    if (e.code === 'NO_CONFIG' || e.code === 'INVALID_CONFIG') { console.error(`autodev tick: ${e.message}`); return 1; }
     throw e;
   }
 }
