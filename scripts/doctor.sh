@@ -24,6 +24,16 @@ if [[ "$AUTODEV_CFG_LEGACY_SPLIT" == "true" ]]; then
   warn "repo.local_path/runner.* still inline in deployment.json (pre-split config) — run /autodev:init or scripts/upgrade-config.sh to move them into .autodev/deployment.local.json"
 fi
 
+echo "config schema:"
+# the one authoritative schema (src/core/config/schema.mjs) — errors fail the preflight
+if VOUT=$(node "$HERE/../bin/autodev-config.mjs" validate "$ROOT" 2>&1); then
+  printf '%s\n' "$VOUT" | sed 's/^/  /' | grep -E '^\s+[!·]' || true
+  ok "$(printf '%s\n' "$VOUT" | grep '✓' | sed 's/^ *✓ *//')"
+else
+  while IFS= read -r line; do [[ -n "$line" ]] && bad "$line"; done < <(printf '%s\n' "$VOUT" | grep -E '^\s+✗' | sed 's/^ *✗ *//')
+fi
+PLANNING=$(node "$HERE/../bin/autodev-config.mjs" normalize "$ROOT" 2>/dev/null | jq -r '.planning.engine // "agency"')
+
 echo "tooling:"
 for t in node git claude; do
   command -v "$t" >/dev/null && ok "$t" || bad "$t missing"
@@ -34,7 +44,9 @@ if [[ "$(jq -r '.review.delivery // "draft_pr"' "$CONFIG")" == "local_diff" ]]; 
 else
   command -v gh >/dev/null && ok "gh" || bad "gh missing (draft_pr delivery opens GitHub PRs — brew install gh, or set review.delivery=local_diff)"
 fi
-command -v braingrid >/dev/null && ok "braingrid" || warn "braingrid missing — engine will use the agent PRD/breakdown fallback"
+if [[ "$PLANNING" == "braingrid" ]]; then
+  command -v braingrid >/dev/null && ok "braingrid" || warn "braingrid missing — planning.engine=braingrid falls back to agency at run time"
+fi
 
 echo "repo:"
 REPO="$ROOT"
@@ -133,13 +145,12 @@ else
   bad "no Linear token (\$LINEAR_API_TOKEN or $LINEAR_TOKEN_FILE) — or set tracker.kind=local (no token needed)"
 fi
 
-echo "braingrid:"
-BG=$(jq -r '.braingrid.enabled' "$CONFIG")
-PID=$(jq -r '.braingrid.project_short_id' "$CONFIG")
-if [[ "$BG" == "true" ]]; then
-  [[ "$PID" != "PENDING_BRAINGRID_INIT" && "$PID" != "PROJ-XX" ]] && ok "braingrid project $PID" || warn "braingrid.enabled but project_short_id not set (run braingrid init)"
+echo "planning ($PLANNING):"
+if [[ "$PLANNING" == "braingrid" ]]; then
+  PID=$(jq -r '.braingrid.project_short_id // ""' "$CONFIG")
+  [[ -n "$PID" && "$PID" != "PENDING_BRAINGRID_INIT" && "$PID" != "PROJ-XX" ]] && ok "planning: braingrid · project $PID" || warn "planning: braingrid but braingrid.project_short_id not set (run braingrid init) — falls back to agency"
 else
-  ok "braingrid disabled — agent fallback in use"
+  ok "planning: agency — product-manager authors the PRD, project-manager-senior reviews + breaks it down (no extra tooling)"
 fi
 
 echo "hermetic safety (B3):"

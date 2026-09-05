@@ -1,38 +1,43 @@
 # Breakdown — Requirement → Linear stories
 
 > Read by `/autodev:loop` after Gate 1 — when the operator approves the PRD / moves
-> the epic out of PRD Review. Runs BrainGrid `/breakdown`, then copies each task's
-> FULL spec into a self-contained Linear issue (so the dev agent never reads
-> BrainGrid), adding persona routing, risk class, AI-QA steps, and manual test steps.
+> the epic out of PRD Review. Decomposes the PRD into tasks (the project-manager
+> persona by default, or BrainGrid `/breakdown` when `planning.engine: braingrid`),
+> then writes each task's FULL spec into a self-contained board issue (so the dev
+> agent never reads any planning tool), adding persona routing, risk class, AI-QA
+> steps, and manual test steps.
 > Not independently invokable.
 
-Read `.autodev/deployment.json` for: tracker states/labels, BrainGrid project,
+Read `.autodev/deployment.json` for: tracker states/labels, `planning.engine`,
 `personas.dev_routing`, `review.granularity`. Drive this with the
 **project-manager-senior** persona (`personas.stage_defaults.breakdown`).
 
 ## Steps
 
-1. **Decompose the PRD into tasks** (BrainGrid preferred, agent fallback — mirror
-   `braingrid.enabled` / availability from `/prd`):
-   - **(BrainGrid)** Run `/breakdown <REQ>` → AI-ready tasks; `/build <REQ>` → the
-     implementation plan. Both grounded in the codebase via Claude Code.
-   - **(Fallback)** **project-manager-senior** decomposes the PRD into the same
+1. **Decompose the PRD into tasks** (same engine `reference/prd.md` used —
+   `planning.engine`):
+   - **(`agency`, default)** **project-manager-senior** decomposes the PRD into
      AI-ready tasks directly, grounded in the codebase — coherent epics, small
      single-purpose tasks, explicit dependencies.
+   - **(`braingrid`)** Run `/breakdown <REQ>` → AI-ready tasks; `/build <REQ>` → the
+     implementation plan. Both grounded in the codebase via Claude Code. Unavailable
+     at run time → do the `agency` path and note it.
 
 2. **Build the Linear hierarchy** (this is where the feature fans out — *after*
    Gate 1, never before). Per `tracker.hierarchy`:
    - **The Project (feature):** in **`issue` mode**, *create* a Project to group the
      stories and link it to the feature issue + PRD. In **`project` mode**, the
      Project already exists (from intake) — set its project-status to `in_development`.
-   - **Epic → a Milestone** in that Project. Group the BrainGrid tasks into a small
+   - **Epic → a Milestone** in that Project. Group the tasks into a small
      number of coherent epics; one Milestone each (the parallel lanes the devloop runs).
    - **Story/task → an Issue** in the Project, assigned to its Milestone (next step).
 
 3. **Transfer each task → a SELF-CONTAINED Linear Issue.** Copy the task's **full
    spec into the Linear issue body** so Linear is the single source of truth the dev
-   agent works from — it must NEVER need to open BrainGrid to build the story.
-   - **(BrainGrid)** Pull the complete content per task:
+   agent works from — it must NEVER need to open a planning tool to build the story.
+   - **(`agency`)** project-manager-senior writes the complete spec (criteria,
+     plan, tests, edge cases) directly into the issue body.
+   - **(`braingrid`)** Pull the complete content per task:
      `braingrid task list -r <REQ> --format json` (get the task ids), then
      `braingrid task show <id> --format markdown` → the full task spec (description,
      acceptance criteria, implementation/build plan, test plan, edge cases).
@@ -42,9 +47,7 @@ Read `.autodev/deployment.json` for: tracker states/labels, BrainGrid project,
      "ai-eligible,<tracker.instance_label>,…"` (the instance tag goes on EVERY issue
      this engine creates — principle 10),
      assigned to its epic's Milestone. Don't summarize or link-only — copy the data in.
-   - **(Fallback)** project-manager-senior writes the same complete spec (criteria,
-     plan, tests, edge cases) directly into the issue body.
-   - Then ensure these engine fields are present on the issue (add any the BrainGrid
+   - Then ensure these engine fields are present on the issue (add any the planning
      content didn't already cover):
      - **Acceptance criteria** (objective, testable — the contract) · **AI QA steps**
        + **manual test steps** · **Tests required** note.
@@ -55,9 +58,9 @@ Read `.autodev/deployment.json` for: tracker states/labels, BrainGrid project,
      - **`risk:` class** — `trivial` / `standard` / `sensitive` (isolated+well-tested
        → trivial; auth/data/money/migrations/security → sensitive). Drives review depth.
      - **`agent:` persona** — routed from `personas.dev_routing` by touched files.
-   - **Traceability (one-way mirror):** footer the issue with the source
-     `BrainGrid <REQ> / <task-id>`. Linear stays authoritative; BrainGrid is never
-     read again downstream.
+   - **Traceability (one-way mirror, `braingrid` only):** footer the issue with the
+     source `BrainGrid <REQ> / <task-id>`. The board stays authoritative; BrainGrid
+     is never read again downstream.
 
 4. **Ask, don't invent.** If the PRD is too thin to write *testable* criteria or
    QA steps for a task, **stop and ask the operator live** rather than emitting a

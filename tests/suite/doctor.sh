@@ -17,7 +17,7 @@ check "reports local board ok"                       has 'ok: local board'
 check "repo.local_path matches this checkout"        has 'local_path matches'
 check "gh needed for draft_pr (stub present)"        has_re '✓.* gh$'
 check "branch protection: unprotected is a WARN when no timer is wired" has_re '!.*unprotected'
-check "braingrid disabled → agent fallback"          has 'braingrid disabled'
+check "planning: agency (no braingrid needed)"       has 'planning: agency'
 check "hermetic on + no prod endpoints in env"       has 'hermetic on; no prod endpoints'
 check "no split warning on a split config"           lacks 'still inline'
 check "personas resolution is --check only (no ~/.claude/agents created)" test ! -d "$HOME/.claude/agents"

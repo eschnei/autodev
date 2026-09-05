@@ -123,7 +123,7 @@ Both feed the human gates, never replace them.
 | `gh` + a GitHub remote | default draft-PR delivery | set `review.delivery: local_diff` — fully local |
 | [agency-agents](https://github.com/msitarzewski/agency-agents) personas (MIT) | specialist dev/QA agents | auto-installed on demand from a pinned ref (`personas.auto_install`); otherwise runs on the built-in fallback agent |
 | Playwright (MCP) | screenshots for live/visual QA and bug repro | `/autodev:qa` / `/autodev:repro` offer to install it (with your consent); visual checks flag instead of block |
-| [BrainGrid CLI](https://braingrid.ai) | spec authoring | agents author the PRD/breakdown instead — nothing breaks |
+| [BrainGrid CLI](https://braingrid.ai) | optional spec-authoring adapter (`planning.engine: braingrid`) | the default: the PM personas author the PRD/breakdown |
 | Linear or Shortcut | `tracker.kind: linear` / `shortcut` | the zero-setup local board (default) |
 
 ## Toggles (preferred-optional, degrade gracefully)
@@ -132,7 +132,8 @@ Both feed the human gates, never replace them.
 |---|---|---|
 | `tracker.kind` | `local` (git-native board — zero setup, no tokens, `tracker.mjs board` view) · `linear` (the board is Linear, live) · `shortcut` (the board is Shortcut, live; cli intake) | `local` for new setups (init's default) |
 | `tracker.mirror.linear` | local mode: also mirror to Linear async (queued, off the critical path) | `false` |
-| `braingrid.enabled` | BrainGrid spec authoring **or** agent (PM + PjM) fallback | `true` (auto-falls-back if absent) |
+| `planning.engine` | `agency` (the PM + PjM personas author the PRD + breakdown) **or** `braingrid` (optional adapter; auto-falls-back to agency if unavailable) | `agency` |
+| `executor.default` | which model runtime runs the engine's jobs (`claude`; `codex` when its adapter lands) | `claude` |
 | `session_mode` | `concierge` (Marj greets, plain English drives) · `signal` (one-line pointer, dormant until invoked) · `silent` | `concierge` |
 | `intake.mode` | `cli` (in-session) **or** `linear` (tickets + comments, no terminal) | `cli` |
 | `intake.bugs` | `triage` (flag for a human) **or** `pipeline` (repro-test-first fixing) | `triage` |

@@ -4,19 +4,20 @@
 > `/autodev:new` on the BYO-PRD fast path. Not independently invokable.
 
 Read deployment config from `.autodev/deployment.json` (personas, tracker
-states, BrainGrid project). Drive this with the **product-manager** persona
+states, `planning.engine`). Drive this with the **product-manager** persona
 (`personas.stage_defaults.prd`).
 
-## Spec tool — BrainGrid preferred, agent fallback
+## Planning engine — Agency by default, BrainGrid as an optional adapter
 
-Check `braingrid.enabled`:
-- **`true` (preferred):** author the PRD as a **BrainGrid Requirement** (step 2a).
-- **`false`, or BrainGrid is unavailable** (usage limit / error): use the
-  **agent fallback** (step 2b) — the **product-manager** persona authors the PRD
-  and **project-manager-senior** reviews it for completeness. Same structure, same
-  Gate 1; the PRD just lives in `specs/<feature-slug>/prd.md` + the Linear issue
-  instead of BrainGrid. If BrainGrid is configured `true` but errors at runtime,
-  **fall back automatically** and note it in the Gate-1 summary.
+Check `planning.engine` (a config without it means `agency`, unless the legacy
+`braingrid.enabled: true` is set — that still means `braingrid`):
+- **`agency` (default):** the **product-manager** persona authors the PRD and
+  **project-manager-senior** reviews it for completeness (step 2b). The PRD lives in
+  `specs/<feature-slug>/prd.md` + the board issue.
+- **`braingrid` (optional adapter):** author the PRD as a **BrainGrid Requirement**
+  (step 2a). Same structure, same Gate 1. If BrainGrid is unavailable at run time
+  (usage limit / error), **fall back to `agency` automatically** and note it in the
+  Gate-1 summary.
 
 ## Steps
 
@@ -24,12 +25,12 @@ Check `braingrid.enabled`:
    If the codebase is unfamiliar, use **codebase-onboarding-engineer** first to
    map the relevant area.
 
-2a. **(BrainGrid) Author the Requirement via `/specify`** (or `/save-requirement`
+2a. **(`braingrid`) Author the Requirement via `/specify`** (or `/save-requirement`
    after a working discussion). The Requirement is the structured PRD: problem
    statement, **testable acceptance criteria**, implementation considerations,
    edge cases, non-goals.
 
-2b. **(Fallback) Author the PRD with the personas.** The **product-manager**
+2b. **(`agency`) Author the PRD with the personas.** The **product-manager**
    drafts the same structured PRD (problem · metrics · user stories · *testable*
    acceptance criteria · edge cases · non-goals), grounded in the code; then
    **project-manager-senior** reviews it for completeness and testability before
@@ -42,8 +43,8 @@ Check `braingrid.enabled`:
    assumption explicitly so the operator confirms it at Gate 1.
 
 4. **Persist.** Commit the PRD markdown to `specs/<feature-slug>/prd.md` (working
-   branch, never the default). With BrainGrid, the Requirement is canonical (run
-   `/build <REQ>`); in fallback mode, `prd.md` + the Linear issue are canonical.
+   branch, never the default). Under `agency`, `prd.md` + the board issue are
+   canonical; under `braingrid`, the Requirement is canonical (run `/build <REQ>`).
 
 5. **Move to Gate 1.** Set the Linear feature-request issue to `PRD Review (H)`,
    linked to the PRD. **Stop.** Tell the operator the PRD is ready and summarize it
