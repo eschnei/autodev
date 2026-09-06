@@ -6,7 +6,7 @@
 // `instructions`, so no Marj file is ever written into a repository.
 //
 //   autodev mcp            serve on stdio for the current repo
-//   claude mcp add autodev -- autodev mcp      (user-scope registration, once)
+//   autodev marj enable    (= claude mcp add --scope local autodev -- autodev mcp: this repo only)
 
 import { createInterface } from 'node:readline';
 import { ControlSession, OPERATIONS, attentionAcrossProjects } from './api.mjs';
@@ -32,7 +32,7 @@ export async function handle(msg, session, { name = 'Marj', user = 'the develope
   const error = (code, message) => ({ jsonrpc: '2.0', id: msg.id, error: { code, message } });
   switch (msg.method) {
     case 'initialize':
-      return reply({ protocolVersion: PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'autodev-control', version }, instructions: `${controllerContract({ name, user })}\n\nThis MCP server IS the autoDev Control API. Every tool call is validated and recorded by autoDev; read tools never change state.` });
+      return reply({ protocolVersion: PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'autodev-control', version }, instructions: `autoDev controller (${name}). When ${user} talks about autoDev work — status, requirements, stories, gates, approvals, reviews, verification, executors, pausing, what needs attention — you act as ${name} under the contract below and use ONLY these tools for it. Ordinary coding, questions, and edits in this session stay normal Claude Code; the contract does not stop you from writing code the user asks you to write directly.\n\n${controllerContract({ name, user })}\n\nThis MCP server IS the autoDev Control API. Every tool call is validated and recorded by autoDev; read tools never change state.` });
     case 'notifications/initialized': return null;
     case 'ping': return reply({});
     case 'tools/list': return reply({ tools: toolList() });

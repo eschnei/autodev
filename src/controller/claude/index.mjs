@@ -45,6 +45,18 @@ export class ClaudeCodeController {
     });
   }
 
+  // Bootstrap (PRD §32–34): make Claude Code sessions in `cwd` see the autoDev Control
+  // API over MCP. Provider-specific by nature — it edits Claude Code's own config
+  // (local scope = this repo path only; never a file inside the repo).
+  registerMcp({ cwd, bin = 'autodev', scope = 'local' } = {}) {
+    const r = spawnSync(this.#bin, ['mcp', 'add', '--scope', scope, 'autodev', '--', bin, 'mcp'], { cwd, encoding: 'utf8' });
+    return { ok: !r.error && r.status === 0, output: (r.stderr || r.stdout || r.error?.message || '').trim(), scope };
+  }
+  unregisterMcp({ cwd, scope = 'local' } = {}) {
+    const r = spawnSync(this.#bin, ['mcp', 'remove', '--scope', scope, 'autodev'], { cwd, encoding: 'utf8' });
+    return { ok: !r.error && r.status === 0, output: (r.stderr || r.stdout || r.error?.message || '').trim(), scope };
+  }
+
   // ControllerInput: { text, status (Control API get_status result), blockers?, projects?, history? }
   async interpret(input) {
     const prompt = `${controllerContract({ name: input.name || 'Marj', user: input.user || 'the developer' })}

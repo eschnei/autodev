@@ -109,8 +109,10 @@ check "marj status explains"                     bash -c "cd '$R' && AUTODEV_CON
 check "config: controller section validated (provider enum)" bash -c "cd '$R' && jq '.controller.provider=\"gpt-magic\"' .autodev/deployment.json > d && mv d .autodev/deployment.json && node '$CLI' status | grep -q 'config: 1 error'; cd '$R' && jq '.controller.provider=\"claude-code\"' .autodev/deployment.json > d && mv d .autodev/deployment.json"
 NOCLI=$(mkrepo NoCli); git -C "$NOCLI" add -A >/dev/null; git -C "$NOCLI" commit -qm init >/dev/null
 check "no claude on PATH → controller unavailable, status still fine" bash -c "cd '$NOCLI' && PATH=/usr/bin:/bin:\$(dirname \$(command -v node)) node '$CLI' status | grep -q 'Controller: unavailable — claude-code CLI not found'"
-check "marj setup never writes into the repo"    bash -c "cd '$R' && node '$CLI' marj setup | grep -q 'claude mcp add autodev -- autodev mcp' && clean '$R'"
+check "marj setup never writes into the repo"    bash -c "cd '$R' && node '$CLI' marj setup | grep -q 'autodev marj enable' && clean '$R'"
 check "marj contract prints the contract"        bash -c "cd '$R' && node '$CLI' marj contract | grep -q '^not_authority:'"
+check "marj enable registers a LOCAL-scope MCP server for this repo (via the claude CLI), repo untouched" bash -c "cd '$R' && : > '$CLAUDE_STUB_LOG' && node '$CLI' marj enable | grep -q 'Marj enabled for' && grep -q -- 'mcp add --scope local autodev -- autodev mcp' '$CLAUDE_STUB_LOG' && clean '$R'"
+check "marj disable removes it"                  bash -c "cd '$R' && node '$CLI' marj disable | grep -q 'Marj disabled for' && grep -q -- 'mcp remove --scope local autodev' '$CLAUDE_STUB_LOG'"
 
 echo "marj — the MCP adapter serves the same surface (bootstrap Marj = a Claude Code session):"
 MCP=$(cd "$R" && printf '%s\n' \
@@ -129,6 +131,7 @@ check "tools/list = the catalog + attention + capabilities, with schemas" bash -
 check "tools/call read → ok JSON content"        bash -c "line 3 | jq -e '.result.content[0].text|fromjson|.ok==true and (.result|has(\"gate1\"))' | grep -q true"
 check "tools/call action refused by autoDev → isError + reason (never a silent no-op)" bash -c "line 4 | jq -e '.result.isError==true and (.result.content[0].text|fromjson|.error.code==\"gate\")' | grep -q true"
 check "cross-project attention lists every registered project" bash -c "line 5 | jq -e '.result.content[0].text|fromjson|length>=3 and (map(.name)|index(\"MarjCo\")!=null)' | grep -q true"
+check "MCP instructions scope Marj to autoDev work; ordinary coding stays normal" bash -c "line 1 | jq -r .result.instructions | grep -q 'Ordinary coding, questions, and edits in this session stay normal Claude Code'"
 check "unknown method → JSON-RPC error"         bash -c "line 6 | jq -e '.error.code==-32601' | grep -q true"
 check "garbage line → parse error, server keeps going" bash -c "printf '%s\n' \"\$MCP\" | jq -c 'select(.id==null)' | jq -e '.error.code==-32700' | grep -q true"
 check "MCP actor recorded on the control.call event" bash -c "cat '$AUTODEV_HOME'/state/projects/*/events/*.jsonl | jq -e 'select(.type==\"control.call\" and .op==\"approve_gate\" and .ok==false) | .actor.provider==\"mcp\"' | grep -q true"

@@ -37,7 +37,7 @@ Gate decisions through the API carry the actor (`cli`, `controller`, `mcp`); Mar
 ## Bootstrap: make a Claude Code session Marj
 
 ```
-claude mcp add autodev -- autodev mcp      # once, user scope — nothing is written into any repo
+autodev marj enable                        # per repo (Claude Code local scope) — nothing is written into the repo; `autodev marj disable` undoes it
 claude                                     # in a project: the session sees the Control API tools + Marj's contract
 autodev marj setup | contract | status     # the same instructions, the contract text, availability
 ```

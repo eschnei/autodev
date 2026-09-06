@@ -70,7 +70,7 @@ usage: autodev [command] [args]      (no command = interactive shell)
   <anything else>        natural language → Marj (the controller) → structured autoDev actions
 
 Marj — the conversational controller (never the executor; autoDev decides):
-  marj [status|contract|setup]   controller status · the controller contract · how to make a Claude Code session Marj
+  marj [status|contract|setup|enable|disable]   controller status · contract · how to make a Claude Code session Marj · enable/disable it for THIS repo
   mcp                    serve the Control API over MCP on stdio (a Claude Code session with it registered IS Marj)
   control <op> [json]    call one Control API operation deterministically (autodev control get_blockers)
   projects | attention   every registered project: what awaits you, what is in flight (cross-project)
@@ -205,8 +205,16 @@ async function cmdMarj(ctx, sub) {
   switch (sub || 'status') {
     case 'status': console.log(`controller: ${c.display} · provider ${c.provider} · model ${c.model}\navailable: ${ctx.controllerAvailable ? 'yes' : `no — ${ctx.controllerReason}`}\ncapabilities: ${Object.keys(OPERATIONS).length} Control API operations (autodev control list)`); return 0;
     case 'contract': console.log(controllerContract({ name: c.display, user: process.env.USER || 'the developer' })); return 0;
-    case 'setup': console.log(`Make a Claude Code session ${c.display} (bootstrap, PRD §32–34). Nothing is written into any repository.\n\n  1. once, user scope:   claude mcp add autodev -- autodev mcp\n  2. in any project:     claude      → the session sees the autoDev Control API tools + ${c.display}'s contract as server instructions\n  3. remote:             Claude Remote Control on the Mac mini steers that same session (autodev tick keeps running regardless)\n\nInside the session, \`${c.display}\` can only act through the Control API tools: reads are free, actions are validated and recorded by autoDev, human gates are never crossed without your explicit approve_gate.`); return 0;
-    default: console.error('usage: autodev marj [status|contract|setup]'); return 2;
+    case 'setup': console.log(`Make a Claude Code session ${c.display} (bootstrap, PRD §32–34). Nothing is written into any repository.\n\n  per project (recommended):  autodev marj enable      (= claude mcp add --scope local autodev -- autodev mcp, for this repo only)\n  undo:                       autodev marj disable\n  everywhere:                 claude mcp add --scope user autodev -- autodev mcp\n  then:                       claude      → the session sees the autoDev Control API tools + ${c.display}'s contract as server instructions\n  remote:                     Claude Remote Control steers that same session (autodev tick keeps running regardless)\n\nInside the session, ${c.display} acts only through the Control API tools for autoDev work: reads are free, actions are validated and recorded by autoDev, human gates are never crossed without your explicit approve_gate. Ordinary coding in the session stays normal Claude Code.`); return 0;
+    case 'enable': case 'disable': {
+      if (!ctx.identity) { console.error('autodev: not in a git repository'); return 1; }
+      const impl = ctx.controllerImpl instanceof ClaudeCodeController ? ctx.controllerImpl : new ClaudeCodeController();
+      const r = sub === 'enable' ? impl.registerMcp({ cwd: ctx.identity.root, bin: process.env.AUTODEV_CLI_BIN || 'autodev' }) : impl.unregisterMcp({ cwd: ctx.identity.root });
+      if (!r.ok) { console.error(`autodev: marj ${sub} failed: ${r.output}`); return 1; }
+      console.log(`${c.display} ${sub}d for ${ctx.identity.root} (Claude Code local scope — your user config, nothing in the repo).${sub === 'enable' ? `\nnext: claude   (or Remote Control) → ask ${c.display} "what needs me today"` : ''}`);
+      return 0;
+    }
+    default: console.error('usage: autodev marj [status|contract|setup|enable|disable]'); return 2;
   }
 }
 async function cmdProjects() {
