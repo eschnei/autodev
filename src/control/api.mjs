@@ -161,6 +161,7 @@ export class ControlSession {
   async op_get_diff_summary(ctx, { branch, base }) {
     const root = ctx.identity.root; const b = branch || currentBranch(root); const d = base || ctx.legacy?.repo?.default_branch || 'main';
     if (!b) throw new ControlError('detached HEAD and no branch given', 'invalid');
+    for (const [k, v] of [['branch', b], ['base', d]]) if (!/^[A-Za-z0-9][A-Za-z0-9._\/-]*$/.test(v) || v.includes('..')) throw new ControlError(`${k} "${v}" is not a plain ref name`, 'invalid');   // controller-supplied: never an option or a range
     const stat = git(root, ['diff', '--stat', `${d}...${b}`]) ?? git(root, ['diff', '--stat', d, b]);
     return { branch: b, base: d, stat: stat || '(no differences or base unknown)', commits_ahead: commitsAhead(root, b, d) };
   }

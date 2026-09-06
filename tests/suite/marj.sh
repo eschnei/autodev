@@ -46,6 +46,8 @@ F=$(mkrepo FailCo '.commands.test="exit 3"'); git -C "$F" add -A >/dev/null; git
 check "failing test → FAIL with the exit code, rc 1" bash -c "cd '$F' && node '$CLI' verify 2>&1 | grep -q 'exit 3'; cd '$F' && ! node '$CLI' verify >/dev/null 2>&1"
 check "diff summary is read-only git"            bash -c "cd '$R' && git checkout -qb story/x && echo x > x.txt && git add x.txt && git commit -qm x && node '$CLI' diff | jq -e '.branch==\"story/x\" and .base==\"main\" and (.commits_ahead|length)==1 and (.stat|test(\"x.txt\"))'"
 
+check "diff refuses controller-supplied refs that look like git options or ranges" bash -c "cd '$R' && node '$CLI' control get_diff_summary '{\"branch\":\"--output=/tmp/x\"}' 2>&1 | grep -q 'not a plain ref name' && node '$CLI' control get_diff_summary '{\"base\":\"main..x\"}' 2>&1 | grep -q 'not a plain ref name'"
+
 echo "marj — pause is honored by the heartbeat:"
 check "pause (project) persists in project.json" bash -c "cd '$R' && node '$CLI' pause waiting on design | jq -e '.paused.reason==\"waiting on design\"'"
 check_out "tick skips a paused project"          "tick: project paused by .* — waiting on design" bash -c "node '$CLI' tick '$R' 2>&1"
