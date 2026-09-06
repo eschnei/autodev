@@ -8,7 +8,7 @@
 // this file.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { emptyResult, registerExecutor } from '../executor.mjs';
+import { emptyResult, registerExecutor, repoSnapshot, repoDelta, mergeDelta } from '../executor.mjs';
 
 const USAGE_LIMIT_RE = /usage limit|rate limit/i;
 
@@ -49,6 +49,7 @@ export class ClaudeCodeExecutor {
     const args = ['-p', job.task, '--output-format', 'json'];
     for (const t of job.permissions?.allowed_tools || []) args.push('--allowedTools', t);
     const started = new Date().toISOString();
+    const snap = repoSnapshot(job.cwd || process.cwd());
     return new Promise((resolve) => {
       let out = '', err = '';
       let child;
@@ -67,7 +68,7 @@ export class ClaudeCodeExecutor {
         if (timer) clearTimeout(timer);
         const wasCancelled = this.#running.get(job.job_id)?.cancelled === true;
         this.#running.delete(job.job_id);
-        resolve(this.#translate({ code, signal, out, err, started, cancelled: wasCancelled }));
+        resolve(mergeDelta(this.#translate({ code, signal, out, err, started, cancelled: wasCancelled }), repoDelta(snap)));
       });
     });
   }

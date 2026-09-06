@@ -11,7 +11,7 @@
 // executor seam as the CLI; Brain through the same client; gates through
 // src/core/workflow/gates.mjs.
 
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolveProject, saveProject, loadRegistry, loadProject } from '../core/project.mjs';
 import { Tracker } from '../core/tracker.mjs';
@@ -23,6 +23,9 @@ import { appendEvent, readEvents } from '../core/events.mjs';
 import { StateRepo, StateError } from '../core/state.mjs';
 import { brainStatus, ensureBrainProject, contextForJob, recordHandoff, recordGateDecision, describeBrain } from '../brain/index.mjs';
 import { git, currentBranch, commitsAhead } from '../core/git.mjs';
+import { scanContamination, contaminationDelta, describeContamination, isSidecarProject } from '../core/contamination.mjs';
+import { wantsLane, ensureLane, listLanes, removeLane } from '../core/workspace.mjs';
+import { isFeature } from '../core/workflow/state.mjs';
 import '../executors/claude/index.mjs';
 import '../executors/codex/index.mjs';
 
@@ -51,6 +54,8 @@ export const OPERATIONS = Object.freeze({
   approve_gate:         { params: { id: 'issue id', note: 'optional' }, reads: false, description: 'Record the HUMAN\'s approval at Gate 1 or Gate 2 (only when the user explicitly approved). Gate 1 → breakdown job; Gate 2 → merge job + verification. Refused when the issue is not at a gate.' },
   reject_gate:          { params: { id: 'issue id', reason: 'required' }, reads: false, description: 'Record the HUMAN\'s rejection at a gate with the reason; Gate 2 → back to AI Development.' },
   cancel_job:           { params: { job_id: 'job id' }, reads: false, description: 'Cancel a running executor job (best effort).' },
+  list_lanes:           { params: {}, reads: true, description: 'Isolated story worktrees (lanes) this project has: issue, branch, path. Read-only.' },
+  release_lane:         { params: { id: 'issue id', force: 'optional boolean: discard uncommitted work in the lane' }, reads: false, description: 'Remove a story\'s isolated worktree (after merge, or to reset it). Refuses a dirty lane unless force.' },
 });
 
 const running = new Map(); // job_id → { executor, job }
@@ -108,21 +113,34 @@ export class ControlSession {
     return hit;
   }
   #paused(ctx) { return ctx.project?.paused || null; }
-  async #runJob(ctx, { task, role, executorId, issue, extraContext = {} }) {
+  async #runJob(ctx, { task, role, executorId, issue, extraContext = {}, isolate = true }) {
     const exec = executorId || ctx.executorId;
     if (!hasExecutor(exec)) throw new ControlError(`no executor "${exec}" registered (available: ${listExecutors().join(', ')})`, 'invalid');
     const executor = getExecutor(exec);
     const allow = assertAllowlistInvariants(headlessAllowlist(ctx.legacy), ctx.legacy);
-    const job = makeJob({ role, task, cwd: ctx.identity.root, project_id: ctx.project.id, requirement_id: issue?.uid || null, permissions: { allowed_tools: allow }, context: { branch: ctx.identity.branch, issue: issue?.id || null, actor: this.#actor, ...extraContext } });
+    // M8A: a story job gets its own worktree on its story branch; everything else runs on the main checkout
+    let lane = null;
+    if (isolate && issue && wantsLane(issue, ctx.legacy, { isFeature: isFeature(issue, ctx.legacy) })) {
+      try { lane = ensureLane({ root: ctx.identity.root, projectId: ctx.project.id, cfg: ctx.legacy, issue, all: this.#tracker(ctx).readIssues() }); }
+      catch (e) { throw new ControlError(`could not prepare an isolated lane for ${issue.id}: ${e.message}`, 'workspace'); }
+    }
+    const cwd = lane ? lane.cwd : ctx.identity.root;
+    const sidecar = isSidecarProject(ctx);
+    const before = scanContamination(cwd, { sidecar });
+    const job = makeJob({ role, task: lane ? `${task}\n\nWorkspace: you are in an isolated worktree on branch ${lane.branch} (${cwd}). Commit here; never switch branches or touch the main checkout.` : task, cwd, project_id: ctx.project.id, requirement_id: issue?.uid || null, permissions: { allowed_tools: allow }, context: { branch: lane ? lane.branch : ctx.identity.branch, issue: issue?.id || null, actor: this.#actor, lane: lane ? { path: lane.cwd, branch: lane.branch, created: lane.created } : null, ...extraContext } });
     const bc = await contextForJob(ctx.brain, ctx, { role, executor: exec, branch: ctx.identity.branch, requirement_key: issue?.id });
     if (bc) { job.context.brain = { bundle_id: bc.bundle.id, memories: bc.bundle.memories.map((m) => ({ id: m.id, revision: m.revision })) }; job.task = `${bc.text}\n\n---\n\n${job.task}`; }
     running.set(job.job_id, { executor, job });
-    appendEvent(ctx.project.id, { type: 'job.started', job_id: job.job_id, role, executor: exec, issue: issue?.id || null, actor: this.#actor, context_bundle_id: bc?.bundle.id || null });
+    appendEvent(ctx.project.id, { type: 'job.started', job_id: job.job_id, role, executor: exec, issue: issue?.id || null, actor: this.#actor, context_bundle_id: bc?.bundle.id || null, lane: job.context.lane });
     const result = await executor.execute(job);
     running.delete(job.job_id);
+    // M12A: a job that leaves sidecar-owned artifacts in the repo is recorded as contaminated
+    const contamination = contaminationDelta(cwd, before, { sidecar });
+    result.contamination = contamination;
     await recordHandoff(ctx.brain, ctx, job, result, { requirement_key: issue?.id });
-    appendEvent(ctx.project.id, { type: 'job.finished', job_id: job.job_id, status: result.status, executor: exec, issue: issue?.id || null, summary: (result.summary || '').slice(0, 500) });
-    return { job_id: job.job_id, executor: exec, role, status: result.status, summary: result.summary, files_changed: result.files_changed, tests_failed: result.tests_failed, reset_at: result.reset_at, brain_context: bc?.bundle.id || null };
+    appendEvent(ctx.project.id, { type: 'job.finished', job_id: job.job_id, status: result.status, executor: exec, issue: issue?.id || null, summary: (result.summary || '').slice(0, 500), files_changed: result.files_changed, commits: result.commits || [], contamination, lane: job.context.lane });
+    if (contamination.length) appendEvent(ctx.project.id, { type: 'contamination.detected', job_id: job.job_id, issue: issue?.id || null, paths: contamination, cwd });
+    return { job_id: job.job_id, executor: exec, role, status: result.status, summary: result.summary, files_changed: result.files_changed, commits: result.commits || [], tests_failed: result.tests_failed, reset_at: result.reset_at, brain_context: bc?.bundle.id || null, lane: job.context.lane, contamination };
   }
 
   // ---- reads ------------------------------------------------------------------------------
@@ -132,7 +150,9 @@ export class ControlSession {
     if (!ctx.legacy) return { ...base, message: 'registered but not configured — autodev init' };
     let board = null;
     if ((ctx.legacy.tracker?.kind || 'local') === 'local') { const tr = Tracker.for(ctx); const st = readWorkflowState(tr, ctx.legacy); board = { counts: st.counts, awaiting_human: st.awaiting_human.map(brief), in_flight: st.in_flight.map(brief), eligible: st.eligible.map(brief), blocked: st.blocked.map(brief), next: nextAction(st, ctx.legacy), summary: describeState(st, ctx.legacy) }; }
-    return { ...base, deployment: { name: ctx.legacy.client_name, tracker: ctx.legacy.tracker?.kind || 'local', planning: ctx.legacy.planning?.engine, sidecar: !!ctx.legacy.sidecar, config_errors: ctx.legacy.validation?.errors || [] }, board };
+    const contamination = scanContamination(ctx.identity.root, { sidecar: isSidecarProject(ctx) });
+    let lanes = []; try { lanes = listLanes({ root: ctx.identity.root, projectId: ctx.project.id }); } catch {}
+    return { ...base, deployment: { name: ctx.legacy.client_name, tracker: ctx.legacy.tracker?.kind || 'local', planning: ctx.legacy.planning?.engine, sidecar: !!ctx.legacy.sidecar, config_errors: ctx.legacy.validation?.errors || [] }, board, contamination, lanes };
   }
   async op_list_projects() {
     const reg = loadRegistry();
@@ -179,7 +199,7 @@ export class ControlSession {
       const r = spawnSync('/bin/sh', ['-c', cmds[k]], { cwd: root, encoding: 'utf8', env: { ...process.env, ...(ctx.legacy.qa?.hermetic?.enabled ? ctx.legacy.qa.hermetic.env : {}) }, timeout: 15 * 60 * 1000 });
       results[k] = { command: cmds[k], exit_code: r.status, ok: r.status === 0, tail: (r.stdout + r.stderr).trim().split('\n').slice(-15).join('\n') };
     }
-    const contamination = readdirSync(root).filter((f) => ['.brain', '.autodev'].includes(f) && ctx.legacy.sidecar);
+    const contamination = scanContamination(root, { sidecar: isSidecarProject(ctx) });
     const ok = Object.values(results).every((r) => r.skipped || r.ok) && !contamination.length;
     const evidence = { ok, results, contamination, branch: ctx.identity.branch, head: git(root, ['rev-parse', '--short', 'HEAD']) };
     appendEvent(ctx.project.id, { type: 'verification.recorded', issue: id || null, ...evidence, actor: this.#actor });
@@ -237,13 +257,22 @@ export class ControlSession {
     const r = await this.#runJob(ctx, { task: job.task, role: job.role, issue: this.#issue(tr, d.issue), extraContext: { gate: d.gate } });
     const after = this.#issue(tr, d.issue);
     const verified = d.next === 'breakdown' ? { stories_ready: readWorkflowState(tr, ctx.legacy).eligible.length } : { done: after.stage === 'done', stage: after.stage };
-    return { gate: d.gate, issue: d.issue, moved: d.moved, event: d.event.id, job: r, verified };
+    return { gate: d.gate, issue: d.issue, moved: d.moved, next: d.next, event: d.event.id, job: r, verified };
   }
   async op_reject_gate(ctx, { id, reason }) {
     const tr = this.#tracker(ctx);
     const d = gateReject({ tracker: tr, projectId: ctx.project.id, issueId: id, by: this.#actor.name, reason });
     await recordGateDecision(ctx.brain, ctx, d);
     return { gate: d.gate, issue: d.issue, moved: d.moved, event: d.event.id };
+  }
+  async op_list_lanes(ctx) { return listLanes({ root: ctx.identity.root, projectId: ctx.project.id }); }
+  async op_release_lane(ctx, { id, force }) {
+    const tr = this.#tracker(ctx); const issue = this.#issue(tr, id);
+    const lanes = listLanes({ root: ctx.identity.root, projectId: ctx.project.id }); const lane = lanes.find((l) => l.issue === issue.id);
+    if (!lane) throw new ControlError(`${issue.id} has no lane`, 'not_found');
+    const dirty = git(lane.path, ['status', '--porcelain']);
+    if (dirty && !(force === true || force === 'true')) throw new ControlError(`lane for ${issue.id} has uncommitted work (${dirty.split('\n').length} path(s)) — commit it or pass force`, 'dirty');
+    return { issue: issue.id, ...removeLane({ root: ctx.identity.root, projectId: ctx.project.id, issue, force: true }), branch_kept: lane.branch };
   }
   async op_cancel_job(ctx, { job_id }) {
     const r = running.get(job_id);

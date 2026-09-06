@@ -65,6 +65,8 @@ export AUTODEV_CONTROLLER="${AUTODEV_CONTROLLER:-none}"
 cat > "$STUBBIN/claude" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${CLAUDE_STUB_LOG:-/dev/null}"
+# CLAUDE_STUB_TOUCH=<relative path>: pretend the model created a file in its cwd
+if [ -n "${CLAUDE_STUB_TOUCH:-}" ]; then mkdir -p "$(dirname "$CLAUDE_STUB_TOUCH")" && echo model > "$CLAUDE_STUB_TOUCH"; fi
 case "${CLAUDE_STUB_MODE:-ok}" in
   ok)      echo '{"type":"result","is_error":false,"result":"ok"}' ;;
   limited) echo '{"type":"result","is_error":true,"result":"You have hit your usage limit. Try again later.","reset_at_epoch":4102444800}' ;;

@@ -24,7 +24,7 @@ import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { emptyResult, registerExecutor } from '../executor.mjs';
+import { emptyResult, registerExecutor, repoSnapshot, repoDelta, mergeDelta } from '../executor.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const LIMIT_RE = /rate limit|usage limit|quota|too many requests|429/i;
@@ -82,6 +82,7 @@ export class CodexExecutor {
     args.push('-');
     const prompt = job.role === 'probe' ? job.task : `${prohibitions(job, this.#cfg)}\n\n${inlineReferences(job.task)}`;
     const started = new Date().toISOString();
+    const snap = repoSnapshot(job.cwd || process.cwd());
     return new Promise((resolve) => {
       let out = '', err = '', child;
       try { child = spawn(this.#bin, args, { cwd: job.cwd || process.cwd(), env: process.env, stdio: ['pipe', 'pipe', 'pipe'] }); }
@@ -98,7 +99,7 @@ export class CodexExecutor {
         this.#running.delete(job.job_id);
         let lastMsg = null; try { lastMsg = readFileSync(last, 'utf8').trim() || null; } catch {}
         rmSync(tmp, { recursive: true, force: true });
-        resolve(this.#translate({ code, signal, out, err, started, cancelled, lastMsg }));
+        resolve(mergeDelta(this.#translate({ code, signal, out, err, started, cancelled, lastMsg }), repoDelta(snap)));
       });
       child.stdin.on('error', () => {});
       child.stdin.end(prompt);

@@ -249,11 +249,10 @@ async function cmdStatus(ctx) { console.log(banner(ctx)); return 0; }
 
 async function cmdExecutor(ctx, name) {
   if (!name) { console.log(`${ctx.executorId}  (available: ${listExecutors().join(', ')})`); return 0; }
-  if (!hasExecutor(name)) { console.error(`autodev: no executor "${name}" registered (available: ${listExecutors().join(', ')})`); return 1; }
   if (!ctx.project) { console.error('autodev: not in a git repository'); return 1; }
-  ctx.project.executor = { ...(ctx.project.executor || {}), default: name };
-  saveProject(ctx.project);
-  ctx.executorId = name; ctx.executor = getExecutor(name); ctx.executorAvailable = await ctx.executor.available();
+  const r = await session(ctx).call('select_executor', { executor: name });          // one mutation path: the Control API
+  if (!r.ok) { console.error(`autodev: ${r.error.message}`); return 1; }
+  ctx.executorId = name; ctx.executor = getExecutor(name); ctx.executorAvailable = r.result.available;
   console.log(`executor: ${name}${ctx.executorAvailable ? '' : '  (warning: CLI not found on PATH)'}`);
   return 0;
 }
@@ -297,37 +296,29 @@ function claimSeat(ctx) {
 
 async function cmdApprove(ctx, id, note) {
   if (!id) { console.error('usage: autodev approve <issue-id> [note]'); return 2; }
-  if (!claimSeat(ctx)) return 1;
-  const tracker = localTracker(ctx);
-  if (!tracker) return runJob(ctx, `The operator approved ${id}${note ? ` — ${note}` : ''}. Log the gate decision with an audit comment and advance it per the manual; do one bounded unit of work then stop.`, 'gate');
-  let decision;
-  try { decision = gateApprove({ tracker, projectId: ctx.project.id, issueId: id, by: process.env.USER, note }); }
-  catch (e) { if (e instanceof GateError) { console.error(`autodev: ${e.message}`); return 1; } throw e; }
-  console.log(`recorded: Gate ${decision.gate} approved for ${decision.issue}${decision.moved ? ` → ${decision.moved}` : ''} (event ${decision.event.id})`);
-  await recordGateDecision(ctx.brain, ctx, decision, { log: (m) => console.error(m) });
-  const job = jobFor(decision.next, decision.issue, ctx.legacy);
-  console.log(`job → ${ctx.executorId}: ${decision.next} (${job.role})`);
-  const rc = await runJob(ctx, job.task, job.role);
-  const after = tracker.issue(decision.issue);
-  const expect = decision.next === 'breakdown' ? null : 'done';
-  if (expect && after?.stage !== expect) console.error(`verify: ${decision.issue} is in "${after?.stage}", expected "${expect}" — the merge did not complete; see the board comments`);
-  else if (decision.next === 'breakdown') {
-    const state = readWorkflowState(tracker, ctx.legacy);
-    console.log(`verify: ${state.eligible.length} story(ies) now Ready for AI Dev · ${decision.issue} in "${after?.stage}"`);
-  } else console.log(`verify: ${decision.issue} is done`);
-  return rc;
+  if (!localTracker(ctx)) { if (!claimSeat(ctx)) return 1; return runJob(ctx, `The operator approved ${id}${note ? ` — ${note}` : ''}. Log the gate decision with an audit comment and advance it per the manual; do one bounded unit of work then stop.`, 'gate'); }
+  // one mutation path: the Control API records the decision, dispatches the bounded job, verifies
+  const s = session(ctx);
+  const r = await s.call('approve_gate', { id, note });
+  if (!r.ok) { console.error(`autodev: ${r.error.message}`); return 1; }
+  const d = r.result;
+  console.log(`recorded: Gate ${d.gate} approved for ${d.issue}${d.moved ? ` → ${d.moved}` : ''} (event ${d.event})`);
+  console.log(`job → ${d.job.executor}: ${d.next} (${d.job.role})`);
+  if (d.job.status === 'completed') console.log(d.job.summary || '(no output)');
+  else console.error(`autodev: ${d.job.executor} → ${d.job.status}${d.job.summary ? `: ${d.job.summary}` : ''}`);
+  if (d.next === 'breakdown') console.log(`verify: ${d.verified.stories_ready} story(ies) now Ready for AI Dev · ${d.issue} in "breakdown"`);
+  else if (d.verified.done) console.log(`verify: ${d.issue} is done`);
+  else console.error(`verify: ${d.issue} is in "${d.verified.stage}", expected "done" — the merge did not complete; see the board comments`);
+  return d.job.status === 'completed' ? 0 : d.job.status === 'rate_limited' ? 75 : 1;
 }
 
 async function cmdReject(ctx, id, reason) {
   if (!id || !reason) { console.error('usage: autodev reject <issue-id> <reason>'); return 2; }
-  const tracker = localTracker(ctx);
-  if (!tracker) return runJob(ctx, `The operator rejected ${id} at its gate: ${reason}. Log the decision with an audit comment and move it back per the manual; do one bounded unit of work then stop.`, 'gate');
-  try {
-    const d = gateReject({ tracker, projectId: ctx.project.id, issueId: id, by: process.env.USER, reason });
-    console.log(`recorded: Gate ${d.gate} rejected for ${d.issue}${d.moved ? ` → ${d.moved}` : ''} (event ${d.event.id})`);
-    await recordGateDecision(ctx.brain, ctx, d, { log: (m) => console.error(m) });
-    return 0;
-  } catch (e) { if (e instanceof GateError) { console.error(`autodev: ${e.message}`); return 1; } throw e; }
+  if (!localTracker(ctx)) return runJob(ctx, `The operator rejected ${id} at its gate: ${reason}. Log the decision with an audit comment and move it back per the manual; do one bounded unit of work then stop.`, 'gate');
+  const r = await session(ctx).call('reject_gate', { id, reason });
+  if (!r.ok) { console.error(`autodev: ${r.error.message}`); return 1; }
+  console.log(`recorded: Gate ${r.result.gate} rejected for ${r.result.issue}${r.result.moved ? ` → ${r.result.moved}` : ''} (event ${r.result.event})`);
+  return 0;
 }
 
 async function cmdTick(repo, log) {

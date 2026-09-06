@@ -26,6 +26,8 @@ import { fileURLToPath } from 'node:url';
 import { headlessAllowlist, assertAllowlistInvariants } from './permissions.mjs';
 import { loadDeployment } from './config/index.mjs';
 import { makeJob, getExecutor } from '../executors/executor.mjs';
+import { scanContamination, contaminationDelta, describeContamination, isSidecarProject } from './contamination.mjs';
+import { appendEvent } from './events.mjs';
 import '../executors/claude/index.mjs';
 import '../executors/codex/index.mjs';
 import { resolveProject } from './project.mjs';
@@ -116,7 +118,10 @@ export async function tick(repo, { executorId, log = () => {}, env = process.env
     const caps = await executor.capabilities();
     if (caps.tool_allowlist === false) log(`tick: ${executor.id} cannot enforce the tool allowlist mechanically — rules are prompt-level (${caps.guards || 'none'}); core verifies the default branch afterwards`);
     log(`tick: ${executor.id} ← /autodev:loop (${allow.length} permissions${bc ? `, brain context ${bc.bundle.id}` : ''})`);
+    const before = scanContamination(repo, { sidecar: isSidecarProject(ctx) });
     const result = await executor.execute(job);
+    result.contamination = contaminationDelta(repo, before, { sidecar: isSidecarProject(ctx) });
+    if (result.contamination.length) { log(`tick: CONTAMINATION — ${describeContamination(result.contamination)}`); if (ctx.project) appendEvent(ctx.project.id, { type: 'contamination.detected', job_id: job.job_id, paths: result.contamination, cwd: repo }); }
     await recordHandoff(brain, ctx, job, result, { log });
 
     if (result.stderr) appendFileSync(errLog, `${result.stderr}\n`);

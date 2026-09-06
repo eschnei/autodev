@@ -29,6 +29,7 @@
 // core logic must never branch on it.
 
 import { newId } from '../core/ids.mjs';
+import { spawnSync } from 'node:child_process';
 
 export function makeJob(fields) {
   if (!fields || typeof fields.task !== 'string' || !fields.task.trim()) throw new TypeError('makeJob: task is required');
@@ -47,6 +48,33 @@ export function makeJob(fields) {
     expected_outputs: fields.expected_outputs || {},
     timeout_ms: fields.timeout_ms ?? null,
   };
+}
+
+// Ground truth for files_changed: the repo delta across the job (HEAD moved +
+// working tree), independent of what the vendor reports. Adapters take a
+// snapshot before spawning and merge the delta into the result afterwards.
+export function repoSnapshot(cwd) {
+  const g = (args) => { const r = spawnSync('git', args, { cwd, encoding: 'utf8' }); return r.status === 0 ? r.stdout.trim() : null; };
+  const head = g(['rev-parse', 'HEAD']);
+  return { cwd, head, status: g(['status', '--porcelain', '--untracked-files=all']) ?? '', git: head !== null || g(['rev-parse', '--is-inside-work-tree']) === 'true' };
+}
+export function repoDelta(before, cwd = before?.cwd) {
+  if (!before?.git) return { files: [], commits: [], head: null };
+  const g = (args) => { const r = spawnSync('git', args, { cwd, encoding: 'utf8' }); return r.status === 0 ? r.stdout.trim() : null; };
+  const head = g(['rev-parse', 'HEAD']);
+  const committed = before.head && head && before.head !== head ? (g(['diff', '--name-only', `${before.head}..${head}`]) || '') : '';
+  const commits = before.head && head && before.head !== head ? (g(['log', '--format=%h %s', `${before.head}..${head}`]) || '').split('\n').filter(Boolean) : [];
+  const parse = (st) => new Set((st || '').split('\n').filter(Boolean).map((l) => l.slice(3).trim().replace(/^.* -> /, '')));
+  const beforeWt = parse(before.status), afterWt = parse(g(['status', '--porcelain', '--untracked-files=all']) ?? '');
+  const files = new Set(committed.split('\n').filter(Boolean));
+  for (const f of afterWt) if (!beforeWt.has(f)) files.add(f);
+  return { files: [...files].sort(), commits, head };
+}
+export function mergeDelta(result, delta) {
+  if (!delta) return result;
+  result.files_changed = [...new Set([...(result.files_changed || []), ...delta.files])].sort();
+  result.commits = delta.commits;
+  return result;
 }
 
 export function emptyResult(executor, status, extra = {}) {

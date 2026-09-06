@@ -5,11 +5,31 @@
   "type": "module",
   "private": true,
   "license": "Apache-2.0",
-  "author": { "name": "Eric Schneider" },
+  "author": {
+    "name": "Eric Schneider"
+  },
   "repository": "https://github.com/eschnei/autodev",
   "homepage": "https://github.com/eschnei/autodev",
-  "engines": { "node": ">=18" },
-  "bin": { "autodev": "./bin/autodev.mjs" },
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "autodev": "./bin/autodev.mjs"
+  },
+  "files": [
+    ".claude-plugin/",
+    "bin/",
+    "src/",
+    "scripts/",
+    "commands/",
+    "hooks/",
+    "reference/",
+    "docs/",
+    "ops/",
+    "install.sh",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "bash tests/run.sh"
   }

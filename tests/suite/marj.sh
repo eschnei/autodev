@@ -129,7 +129,7 @@ MCP=$(cd "$R" && printf '%s\n' \
   | node "$CLI" mcp 2>/dev/null)
 line() { printf '%s\n' "$MCP" | jq -c "select(.id==$1)"; }; export -f line; export MCP
 check "initialize → protocol, server info, contract as instructions" bash -c "line 1 | jq -e '.result.protocolVersion==\"2024-11-05\" and .result.serverInfo.name==\"autodev-control\" and (.result.instructions|test(\"You are Marj\")) and (.result.instructions|test(\"not_authority\"))' | grep -q true"
-check "tools/list = the catalog + attention + capabilities, with schemas" bash -c "line 2 | jq -e '(.result.tools|length)==22 and (.result.tools|map(.name)|index(\"approve_gate\")) and (.result.tools[]|select(.name==\"start_requirement\")|.inputSchema.required==[\"title\"])' | grep -q true"
+check "tools/list = the catalog + attention + capabilities, with schemas" bash -c "line 2 | jq -e '(.result.tools|length)==24 and (.result.tools|map(.name)|index(\"approve_gate\")) and (.result.tools[]|select(.name==\"start_requirement\")|.inputSchema.required==[\"title\"])' | grep -q true"
 check "tools/call read → ok JSON content"        bash -c "line 3 | jq -e '.result.content[0].text|fromjson|.ok==true and (.result|has(\"gate1\"))' | grep -q true"
 check "tools/call action refused by autoDev → isError + reason (never a silent no-op)" bash -c "line 4 | jq -e '.result.isError==true and (.result.content[0].text|fromjson|.error.code==\"gate\")' | grep -q true"
 check "cross-project attention lists every registered project" bash -c "line 5 | jq -e '.result.content[0].text|fromjson|length>=3 and (map(.name)|index(\"MarjCo\")!=null)' | grep -q true"
@@ -143,4 +143,48 @@ echo "marj — invariants (controller ≠ executor; vendor CLI confined):"
 check "the controller's vendor call lives only under src/controller/<provider>" bash -c "! grep -rnE \"spawn[a-zA-Z]*\\(['\\\"]claude|\\bclaude -p\" '$SRC/control' '$SRC/controller/controller.mjs' '$SRC/cli'"
 check "the Control API never spawns a model itself" bash -c "! grep -nE 'spawn.*(claude|codex)' '$SRC/control/api.mjs' '$SRC/control/mcp.mjs'"
 check "no Marj prompt/contract file in the app repo" bash -c "clean '$R' && ! ls '$R'/.marj* '$R'/MARJ.md 2>/dev/null | grep -q ."
+echo "hardening — files_changed is the repo delta, not a vendor claim:"
+EX="import {repoSnapshot,repoDelta,mergeDelta} from '$SRC/executors/executor.mjs';"
+D=$(mktemp -d "$SANDBOX/delta.XXXXXX"); git -C "$D" init -q -b main; echo a > "$D/a.txt"; git -C "$D" add -A; git -C "$D" commit -qm a
+check "delta sees a commit made during the job + a new untracked file" n "$EX import {writeFileSync} from 'node:fs'; import {execSync} from 'node:child_process'; const s=repoSnapshot('$D'); writeFileSync('$D/b.txt','b'); execSync('git add b.txt && git commit -qm b',{cwd:'$D'}); writeFileSync('$D/c.txt','c'); const d=repoDelta(s); if(JSON.stringify(d.files)!==JSON.stringify(['b.txt','c.txt'])||d.commits.length!==1||!/ b$/.test(d.commits[0])) throw JSON.stringify(d)"
+check "delta ignores pre-existing dirt"           n "$EX const s=repoSnapshot('$D'); const d=repoDelta(s); if(d.files.length||d.commits.length) throw JSON.stringify(d)"
+check "mergeDelta unions vendor-reported files"   n "$EX const r=mergeDelta({files_changed:['x.js']},{files:['b.txt'],commits:[]}); if(JSON.stringify(r.files_changed)!==JSON.stringify(['b.txt','x.js'])) throw JSON.stringify(r)"
+check "outside a git repo the delta is empty, not an error" n "$EX const s=repoSnapshot('/'); if(repoDelta(s).files.length) throw 'x'"
+: > "$CLAUDE_STUB_LOG"; export CLAUDE_STUB_MODE=ok
+ST=$(cd "$R" && node "$TR" create-issue --title lane-story --stage ready_for_ai_dev --labels autodev:marjco | tail -1)
+check "a real job through the CLI reports files the model created" bash -c "cd '$R' && CLAUDE_STUB_TOUCH=made-by-model.txt AUTODEV_CONTROLLER=none node '$CLI' control continue_requirement '{\"id\":\"$ST\"}' 2>/dev/null | jq -e '.files_changed==[\"made-by-model.txt\"]'"
+
+echo "hardening — isolated lanes (M8A): a story job runs in its own worktree:"
+LANES="$AUTODEV_HOME/state/projects/$(jq -r --arg n MarjCo '.projects[]|select(.name==$n)|.id' "$AUTODEV_HOME/state/registry.json")/runtime/worktrees"
+check "the story job above ran in a lane, not the checkout" bash -c "test -d '$LANES/$ST' && git -C '$LANES/$ST' rev-parse --abbrev-ref HEAD | grep -q '^autodev/sc-$ST/lane-story$'"
+check "…the model's file landed in the lane, not the main checkout" bash -c "test -f '$LANES/$ST/made-by-model.txt' && ! test -f '$R/made-by-model.txt'"
+check "…job.started event records the lane"       bash -c "cat '$AUTODEV_HOME'/state/projects/*/events/*.jsonl | jq -e 'select(.type==\"job.started\" and .issue==\"$ST\") | .lane.branch==\"autodev/sc-$ST/lane-story\"' | grep -q true"
+check "…the task told the model where it is"      grep -q "isolated worktree on branch autodev/sc-$ST/lane-story" "$CLAUDE_STUB_LOG"
+check "list_lanes shows it"                       bash -c "cd '$R' && node '$CLI' control list_lanes | jq -e 'map(.issue)==[\"$ST\"]'"
+check "main checkout branch untouched"            bash -c "git -C '$R' rev-parse --abbrev-ref HEAD | grep -q '^story/x$'"
+check "release_lane refuses a dirty lane"         bash -c "cd '$R' && node '$CLI' control release_lane '{\"id\":\"$ST\"}' 2>&1 | grep -q 'uncommitted work'"
+check "release_lane --force removes the worktree, keeps the branch" bash -c "cd '$R' && node '$CLI' control release_lane '{\"id\":\"$ST\",\"force\":true}' | jq -e '.branch_kept==\"autodev/sc-$ST/lane-story\"' && ! test -d '$LANES/$ST' && git -C '$R' show-ref --verify -q refs/heads/autodev/sc-$ST/lane-story"
+check "a second job re-creates the lane from the kept branch" bash -c "cd '$R' && AUTODEV_CONTROLLER=none node '$CLI' control continue_requirement '{\"id\":\"$ST\"}' | jq -e '.lane.created==true and .lane.branch==\"autodev/sc-$ST/lane-story\"'"
+FT=$(cd "$R" && node "$TR" create-issue --title feat --stage breakdown --labels autodev:marjco,route:feature | tail -1)
+check "features / breakdown jobs run on the main checkout (no lane)" bash -c "cd '$R' && AUTODEV_CONTROLLER=none node '$CLI' control continue_requirement '{\"id\":\"$FT\"}' | jq -e '.lane==null'"
+
+echo "hardening — contamination guard (M12A): sidecar-owned artifacts never live in the repo:"
+CG="import {scanContamination,contaminationDelta,describeContamination} from '$SRC/core/contamination.mjs';"
+check "clean repo → []"                           n "$CG if(scanContamination('$R',{sidecar:false}).length) throw JSON.stringify(scanContamination('$R'))"
+check ".brain in the repo is flagged (any mode)"  n "$CG import {mkdirSync,rmSync} from 'node:fs'; mkdirSync('$R/.brain'); const f=scanContamination('$R'); rmSync('$R/.brain',{recursive:true}); if(f.length!==1||f[0].path!=='.brain') throw JSON.stringify(f)"
+check ".autodev is fine for a v2 repo, flagged for a sidecar project" n "$CG if(scanContamination('$R',{sidecar:false}).some(x=>x.path==='.autodev')) throw 'v2'; if(!scanContamination('$R',{sidecar:true}).some(x=>x.path==='.autodev')) throw 'sidecar'"
+check "delta reports only what appeared"          n "$CG import {mkdirSync,rmSync} from 'node:fs'; const b=scanContamination('$R',{sidecar:true}); mkdirSync('$R/MARJ.md'); const d=contaminationDelta('$R',b,{sidecar:true}); rmSync('$R/MARJ.md',{recursive:true}); if(d.length!==1||d[0].path!=='MARJ.md') throw JSON.stringify(d)"
+check "a job that drops .brain into the repo is recorded as contaminated" bash -c "cd '$R' && CLAUDE_STUB_TOUCH=.brain/x AUTODEV_CONTROLLER=none node '$CLI' control continue_requirement '{\"id\":\"$FT\"}' | jq -e '.contamination[0].path==\".brain\"' && cat '$AUTODEV_HOME'/state/projects/*/events/*.jsonl | jq -e 'select(.type==\"contamination.detected\") | .paths[0].path==\".brain\"' | grep -q true"
+check "…verification cannot PASS while contaminated" bash -c "cd '$R' && ! node '$CLI' verify >/dev/null 2>&1 && node '$CLI' control get_verification | jq -e '.ok==false and .contamination[0].path==\".brain\"'"
+rm -rf "$R/.brain"
+check "…get_status exposes contamination (now clean)" bash -c "cd '$R' && node '$CLI' control get_status | jq -e '.contamination==[]'"
+
+echo "hardening — one mutation path: CLI decisions are Control API calls:"
+check "approve via CLI lands as control.call approve_gate with actor cli" bash -c "cat '$AUTODEV_HOME'/state/projects/*/events/*.jsonl | jq -e 'select(.type==\"control.call\" and .op==\"approve_gate\" and .actor.kind==\"cli\")' | grep -q ."
+check "executor via CLI lands as control.call select_executor" bash -c "cd '$R' && node '$CLI' executor claude >/dev/null && cat '$AUTODEV_HOME'/state/projects/*/events/*.jsonl | jq -e 'select(.type==\"control.call\" and .op==\"select_executor\")' | grep -q ."
+check "the CLI no longer mutates the board or project outside the Control API" bash -c "! grep -nE 'gateApprove\(|gateReject\(|saveProject\(ctx\.project\)' '$SRC/cli/main.mjs' | grep -v 'cmdInit\|cmdMigrate' | grep -qE 'cmdApprove|cmdReject|cmdExecutor|gateApprove\(|gateReject\('"
+
+echo "hardening — the production artifact is clean:"
+check "npm pack ships no board state, tests, or scratch" bash -c "cd '$PLUGIN' && ! npm pack --dry-run 2>&1 | grep -E '\.autodev|tests/|BACKLOG|\.github' | grep -q ."
+check "package.json declares an explicit files allowlist" jq -e '.files|index("src/") and index("bin/") and index(".claude-plugin/")' "$PLUGIN/package.json"
 exit $FAIL
