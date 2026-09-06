@@ -5,7 +5,7 @@
 // autoDev. Same Job in, same normalized ExecutionResult out as ClaudeCodeExecutor.
 //
 // Wire contract used (codex exec, non-interactive):
-//   codex exec --json -a never -s <sandbox> -C <cwd> [-m model] -o <last-message-file> -
+//   codex exec --json -c approval_policy=never -s <sandbox> -C <cwd> [-m model] -o <last-message-file> -
 //   prompt on stdin; JSONL events on stdout:
 //     thread.started · turn.started · item.started/updated/completed
 //       item.type: agent_message{text} · command_execution{command,exit_code,aggregated_output}
@@ -76,7 +76,7 @@ export class CodexExecutor {
     const network = allow.some((a) => /git push|gh pr|mcp__/.test(a));
     const tmp = mkdtempSync(join(tmpdir(), 'autodev-codex-'));
     const last = join(tmp, 'last-message.txt');
-    const args = ['exec', '--json', '-a', 'never', '-s', 'workspace-write', '-C', job.cwd || process.cwd(), '-o', last, '--skip-git-repo-check'];
+    const args = ['exec', '--json', '-c', 'approval_policy=never', '-s', 'workspace-write', '-C', job.cwd || process.cwd(), '-o', last, '--skip-git-repo-check'];
     if (network) args.push('-c', 'sandbox_workspace_write.network_access=true');
     if (job.context?.model) args.push('-m', job.context.model);
     args.push('-');

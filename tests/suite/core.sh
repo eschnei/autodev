@@ -42,7 +42,7 @@ cx_run() { : > "$CODEX_STUB_LOG"; cx "await codex.execute(makeJob({task:'$1',cwd
 check "registers as 'codex' next to claude"          cx "import '$SRC/executors/claude/index.mjs'; const l=listExecutors(); if(!l.includes('codex')||!l.includes('claude')) throw l"
 check "capabilities: subscription, no mechanical allowlist, sandboxed" cx "const c=await codex.capabilities(); if(c.auth!=='subscription'||c.tool_allowlist!==false||c.sandbox!==true) throw JSON.stringify(c)"
 check "execute: normalized completed result with files_changed from file_change events" cx "const r=await codex.execute(makeJob({task:'do it',cwd:'$SANDBOX'})); if(r.status!=='completed'||r.summary!=='ok'||r.executor!=='codex'||r.files_changed.join()!=='src/a.js,src/b.js'||!r.raw.usage) throw JSON.stringify(r)"
-argv_ok() { cx_run 'hello there' && grep -q "ARGS: exec --json -a never -s workspace-write -C $SANDBOX -o .*last-message.txt --skip-git-repo-check -" "$CODEX_STUB_LOG" && grep -q 'PROMPT: .*hello there' "$CODEX_STUB_LOG"; }
+argv_ok() { cx_run 'hello there' && grep -q "ARGS: exec --json -c approval_policy=never -s workspace-write -C $SANDBOX -o .*last-message.txt --skip-git-repo-check -" "$CODEX_STUB_LOG" && grep -q 'PROMPT: .*hello there' "$CODEX_STUB_LOG"; }
 check "argv: exec --json, never ask, workspace-write sandbox, -C cwd, -o last-message, prompt on stdin" argv_ok
 net_ok() { cx_run 'x' && ! grep -q 'network_access=true' "$CODEX_STUB_LOG" && cx_run 'x' ",permissions:{allowed_tools:['Bash(git push origin feature/*)']}" && grep -q 'network_access=true' "$CODEX_STUB_LOG"; }
 check "network stays OFF unless the allowlist grants push/gh"  net_ok
