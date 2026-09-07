@@ -31,3 +31,15 @@ The checklist Eric set for the phase, what was done for each item, and how it wa
 | 3 | launchd tick timer | Installed for the AutoDev repo: `com.autodev.autodev-engine.tick` (15 min) + `.watchdog`, stable PATH (fnm default alias) and `AUTODEV_CLI` pinned, scripts copied to `~/.autodev/bin`. `main` on GitHub now requires a PR before merging (the ops doc's precondition). | Fired on load: heartbeat at `~/autodev/heartbeat`, launchd err log shows the tick ran and honored the project pause. The project is **paused** on purpose (`autodev resume` to start unattended ticks on this checkout). |
 | 4 | Remote Marj turn from phone | MCP server registered (local scope) and connected. | Eric's turn. |
 | 5 | Cleanup | AD-19 → Done with a note; M16Demo removed from Brain; Brain PR #1 merged; autoDev 2.4.0 and PR opened from `feature/re-architecture`. | — |
+
+## First real v3-native project (corageo, 2026-09-07)
+
+The first `autodev init` project run end to end surfaced three engine gaps at once, reported by the Codex intake job and confirmed in the events:
+
+| Gap | Fix | Proof |
+|---|---|---|
+| Jobs in a sidecar project could not find the board (`.autodev/deployment.json` is not in the repo) | Every job now receives `AUTODEV_CONFIG`, `AUTODEV_BOARD_DIR`, `AUTODEV_TRACKER` (the engine's own facade) and `AUTODEV_ENGINE_ROOT`; the task text says where the board is. Codex additionally gets `--add-dir <board dir>` because the board lies outside its workspace sandbox. Core's actor is still never passed. | corageo AD-1 moved itself to PRD Review with four comments |
+| `/autodev:loop` jobs ran the installed plugin (2.3.0), not this engine (2.4.0) | `ClaudeCodeExecutor` runs `claude -p … --plugin-dir <engine root>`; the installed marketplace plugin is disabled on the mini (`claude plugin enable autodev@autodev-marketplace` restores it). The engine ships its plugin. | suite asserts the flag; live probe shows `/autodev:loop` available from the engine dir |
+| Codex's workspace-write sandbox keeps `.git` read-only, so nothing it wrote was ever committed | `CodexExecutor` declares `commits:false`; the prompt says so; after a completed job core makes a checkpoint commit on the current branch when the tree is dirty, message from the model's summary, never a push (`result.checkpoint`) | corageo commits `c781777`, `772acdb` |
+
+Also found: the v2 plugin's `/autodev:init` had written `.claude/CLAUDE.md` into corageo from an interactive session before the plugin was disabled; the contamination guard now flags that pointer in sidecar projects. And `files_changed` lost the first character of a modified tracked file's path (a trimmed leading status space); fixed with a test.
