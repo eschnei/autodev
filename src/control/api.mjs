@@ -113,7 +113,7 @@ export class ControlSession {
     return hit;
   }
   #paused(ctx) { return ctx.project?.paused || null; }
-  async #runJob(ctx, { task, role, executorId, issue, extraContext = {}, isolate = true }) {
+  async #runJob(ctx, { task, role, executorId, issue, extraContext = {}, isolate = true, env = {} }) {
     const exec = executorId || ctx.executorId;
     if (!hasExecutor(exec)) throw new ControlError(`no executor "${exec}" registered (available: ${listExecutors().join(', ')})`, 'invalid');
     const executor = getExecutor(exec);
@@ -127,7 +127,7 @@ export class ControlSession {
     const cwd = lane ? lane.cwd : ctx.identity.root;
     const sidecar = isSidecarProject(ctx);
     const before = scanContamination(cwd, { sidecar });
-    const job = makeJob({ role, task: lane ? `${task}\n\nWorkspace: you are in an isolated worktree on branch ${lane.branch} (${cwd}). Commit here; never switch branches or touch the main checkout.` : task, cwd, project_id: ctx.project.id, requirement_id: issue?.uid || null, permissions: { allowed_tools: allow }, context: { branch: lane ? lane.branch : ctx.identity.branch, issue: issue?.id || null, actor: this.#actor, lane: lane ? { path: lane.cwd, branch: lane.branch, created: lane.created } : null, ...extraContext } });
+    const job = makeJob({ role, task: lane ? `${task}\n\nWorkspace: you are in an isolated worktree on branch ${lane.branch} (${cwd}). Commit here; never switch branches or touch the main checkout.` : task, cwd, project_id: ctx.project.id, requirement_id: issue?.uid || null, permissions: { allowed_tools: allow }, env, context: { branch: lane ? lane.branch : ctx.identity.branch, issue: issue?.id || null, actor: this.#actor, lane: lane ? { path: lane.cwd, branch: lane.branch, created: lane.created } : null, ...extraContext } });
     const bc = await contextForJob(ctx.brain, ctx, { role, executor: exec, branch: ctx.identity.branch, requirement_key: issue?.id });
     if (bc) { job.context.brain = { bundle_id: bc.bundle.id, memories: bc.bundle.memories.map((m) => ({ id: m.id, revision: m.revision })) }; job.task = `${bc.text}\n\n---\n\n${job.task}`; }
     running.set(job.job_id, { executor, job });
@@ -254,7 +254,8 @@ export class ControlSession {
     const d = gateApprove({ tracker: tr, projectId: ctx.project.id, issueId: id, by: this.#actor.name, note });
     await recordGateDecision(ctx.brain, ctx, d);
     const job = jobFor(d.next, d.issue, ctx.legacy);
-    const r = await this.#runJob(ctx, { task: job.task, role: job.role, issue: this.#issue(tr, d.issue), extraContext: { gate: d.gate } });
+    // the bounded job may leave the gate for exactly this issue (the decision is recorded): a one-issue ticket
+    const r = await this.#runJob(ctx, { task: job.task, role: job.role, issue: this.#issue(tr, d.issue), extraContext: { gate: d.gate }, env: { AUTODEV_GATE_TICKET: `${d.issue}:${d.event.id}` } });
     const after = this.#issue(tr, d.issue);
     const verified = d.next === 'breakdown' ? { stories_ready: readWorkflowState(tr, ctx.legacy).eligible.length } : { done: after.stage === 'done', stage: after.stage };
     return { gate: d.gate, issue: d.issue, moved: d.moved, next: d.next, event: d.event.id, job: r, verified };

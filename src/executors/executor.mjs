@@ -47,7 +47,18 @@ export function makeJob(fields) {
     verification: fields.verification || {},
     expected_outputs: fields.expected_outputs || {},
     timeout_ms: fields.timeout_ms ?? null,
+    env: fields.env || {},                    // extra env for the vendor process (e.g. a gate ticket); core-only vars are always stripped first
   };
+}
+
+// The environment a vendor process gets: the operator's, minus variables that
+// identify autoDev core to the tracker facade (a model must never inherit them),
+// plus whatever the job explicitly grants.
+const CORE_ONLY = ['AUTODEV_ACTOR', 'AUTODEV_GATE_TICKET'];
+export function jobEnv(job, base = process.env) {
+  const env = { ...base };
+  for (const k of CORE_ONLY) delete env[k];
+  return { ...env, ...(job?.env || {}) };
 }
 
 // Ground truth for files_changed: the repo delta across the job (HEAD moved +

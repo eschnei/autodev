@@ -17,12 +17,12 @@ import { appendEvent } from '../core/events.mjs';
 export async function brainStatus(cfg, project, { env = process.env, fetchImpl } = {}) {
   if (!cfg?.brain?.enabled) return { state: 'off', reason: 'brain.enabled=false' };
   if (!cfg.brain.url) return { state: 'off', reason: 'brain.url not set' };
-  const { token, source } = resolveToken(env);
+  const { token, source, scoped } = resolveToken(env, { projectId: project?.id });
   if (!token) return { state: 'degraded', url: cfg.brain.url, reason: 'no token ($BRAIN_TOKEN, ~/.config/autodev/brain.token, or Keychain "brain")' };
   const client = new BrainClient({ url: cfg.brain.url, token, fetchImpl });
   try {
     const info = await client.connect();
-    return { state: 'connected', url: cfg.brain.url, api: info.api, capabilities: info.capabilities, project_id: project?.brain?.project_id || cfg.brain.project_id || null, token_source: source, client };
+    return { state: 'connected', url: cfg.brain.url, api: info.api, capabilities: info.capabilities, project_id: project?.brain?.project_id || cfg.brain.project_id || null, token_source: source, token_scoped: !!scoped, client };
   } catch (e) {
     if (e instanceof BrainIncompatible) return { state: 'incompatible', url: cfg.brain.url, reason: e.message };
     if (e instanceof BrainUnreachable) return { state: 'degraded', url: cfg.brain.url, reason: e.message };

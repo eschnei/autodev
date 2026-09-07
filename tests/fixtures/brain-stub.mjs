@@ -28,7 +28,7 @@ const server = createServer(async (req, res) => {
   const p = url.pathname;
   if (req.method === 'GET' && p === '/v1') return send(200, { name: 'brain-stub', version: '0.0.0', api: API, capabilities: ['scoped-memory', 'context', 'handoffs', 'decisions', 'idempotency'], user_id: 'usr_stub' });
   if (req.method === 'GET' && p === '/v1/health') return send(200, { ok: true, uptime_s: 1 });
-  if (req.headers.authorization !== `Bearer ${TOKEN}`) return send(401, { error: 'unauthorized', message: 'bad token' });
+  if (req.headers.authorization !== `Bearer ${TOKEN}` && !/^Bearer brn_stub_/.test(req.headers.authorization || '')) return send(401, { error: 'unauthorized', message: 'bad token' });   // minted (scoped) stub tokens are accepted too
   const key = req.headers['idempotency-key'];
   if (key && idem.has(key)) return send(200, { ...idem.get(key), replayed: true });
   const done = (status, obj) => { if (key) idem.set(key, obj); return send(status, obj); };
@@ -43,6 +43,7 @@ const server = createServer(async (req, res) => {
     const latest = state.handoffs.filter((h) => h.project_id === body.project_id).at(-1) || null;
     return send(201, { id: id('ctx'), api: API, project: { id: body.project_id, name: state.projects.find((x) => x.id === body.project_id)?.name || 'stub' }, scope_chain: [{ type: 'project', id: body.project_id }, { type: 'user', id: 'usr_stub' }], related_projects: [], requirement: body.requirement_id ? state.requirements.find((r) => r.id === body.requirement_id) || null : null, task: null, handoff: latest, memories: state.memories, omitted: 0, budget: body.budget || 40 });
   }
+  if (req.method === 'POST' && p === '/v1/tokens') return send(201, { token: `brn_stub_${id('tok')}`, client_id: body.client_id, projects: body.projects || [], permissions: body.permissions || ['read'] });
   if (req.method === 'POST' && p === '/v1/handoffs') { const h = { id: id('hnd'), created_at: new Date().toISOString(), ...body }; state.handoffs.push(h); return done(201, h); }
   if (req.method === 'GET' && p === '/v1/handoffs/latest') { const h = state.handoffs.at(-1); return h ? send(200, h) : send(404, { error: 'not_found', message: 'handoff not found' }); }
   if (req.method === 'POST' && p === '/v1/memory') { const scope = body.scope || { type: body.task_id ? 'task' : body.requirement_id ? 'requirement' : 'project', id: body.task_id || body.requirement_id || body.project_id }; const m = { id: id('mem'), revision: 1, scope, state: body.state || 'observation', visibility: body.visibility || 'project', type: body.type || 'note', content: body.content, provenance: body.provenance || [], data: body.data || {} }; state.memories.push(m); return done(201, m); }

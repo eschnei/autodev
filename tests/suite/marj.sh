@@ -187,4 +187,23 @@ check "the CLI no longer mutates the board or project outside the Control API" b
 echo "hardening — the production artifact is clean:"
 check "npm pack ships no board state, tests, or scratch" bash -c "cd '$PLUGIN' && ! npm pack --dry-run 2>&1 | grep -E '\.autodev|tests/|BACKLOG|\.github' | grep -q ."
 check "package.json declares an explicit files allowlist" jq -e '.files|index("src/") and index("bin/") and index(".claude-plugin/")' "$PLUGIN/package.json"
+echo "hardening — human gates are enforced at the board, not just in prose:"
+V3=$(mktemp -d "$SANDBOX/v3.XXXXXX"); V3="$(cd "$V3" && pwd -P)"; git -C "$V3" init -q -b main; echo x > "$V3/README.md"; git -C "$V3" add -A; git -C "$V3" commit -qm init
+(cd "$V3" && AUTODEV_CONTROLLER=none node "$CLI" init --name GateCo --test true >/dev/null 2>&1)
+GPID=$(cd "$V3" && AUTODEV_CONTROLLER=none node "$CLI" status | grep -oE 'prj_[0-9A-Z]{26}' | head -1)
+export GCFG="$AUTODEV_HOME/state/projects/$GPID/deployment.json" GBOARD="$AUTODEV_HOME/state/projects/$GPID/board"
+tr3() { (cd "$V3" && AUTODEV_CONFIG="$GCFG" AUTODEV_BOARD_DIR="$GBOARD" node "$TR" "$@"); }; export -f tr3; export V3 TR
+check "setup: a feature at Gate 1 on a sidecar board (core actor)" bash -c "AUTODEV_ACTOR=autodev-core tr3 create-issue --title gated --stage prd_review --labels route:feature,autodev:gateco | grep -q '^AD-1$'"
+check "a model/plugin move OUT of a gate is refused (no actor, no ticket)" bash -c "tr3 move AD-1 breakdown 2>&1 | grep -q 'human decision that autoDev records'"
+check "…and nothing changed"                     bash -c "jq -e '.stage==\"prd_review\"' '$GBOARD/AD-1.json'"
+check "a move INTO a gate is still the model's job" bash -c "AUTODEV_ACTOR=autodev-core tr3 create-issue --title s --stage ai_qa --labels autodev:gateco >/dev/null && tr3 move AD-2 ready_for_human_review | grep -q 'AD-2 ->'"
+check "a ticket for a DIFFERENT issue does not open the gate" bash -c "AUTODEV_GATE_TICKET=AD-2:evt_x tr3 move AD-1 breakdown 2>&1 | grep -q 'human decision'"
+check "a ticket for THIS issue does (the post-decision job)" bash -c "AUTODEV_GATE_TICKET=AD-1:evt_x tr3 move AD-1 breakdown --note t | grep -q 'AD-1 ->'"
+check "v2 repo-local boards are unchanged (no guard without AUTODEV_BOARD_DIR)" bash -c "cd '$R' && node '$TR' create-issue --title v2gate --stage prd_review --labels autodev:marjco | grep -q '^AD-' && id=\$(ls '$R/.autodev/board' | grep -c 'AD-') && node '$TR' move AD-\$id breakdown | grep -q 'AD-'"
+: > "$CLAUDE_STUB_LOG"
+check "a model job never inherits the core actor, even if the operator's shell has it" bash -c "cd '$V3' && AUTODEV_ACTOR=leaked AUTODEV_CONTROLLER=none node '$CLI' control continue_requirement '{\"id\":\"AD-2\",\"role\":\"test\"}' >/dev/null 2>&1; ! grep -q 'ENV AUTODEV_ACTOR' '$CLAUDE_STUB_LOG'"
+: > "$CLAUDE_STUB_LOG"
+check "approve_gate hands the bounded job a one-issue ticket" bash -c "cd '$V3' && AUTODEV_CONTROLLER=none node '$CLI' control approve_gate '{\"id\":\"AD-2\"}' >/dev/null 2>&1; grep -q 'ENV AUTODEV_GATE_TICKET=AD-2:evt_' '$CLAUDE_STUB_LOG'"
+check "…and only for that job (a plain continue has none)" bash -c ": > '$CLAUDE_STUB_LOG'; cd '$V3' && AUTODEV_CONTROLLER=none node '$CLI' control continue_requirement '{\"id\":\"AD-2\",\"role\":\"test\"}' >/dev/null 2>&1; ! grep -q 'AUTODEV_GATE_TICKET' '$CLAUDE_STUB_LOG'"
+
 exit $FAIL

@@ -55,6 +55,19 @@ function delegateTo(driver, argv) {
 
 // ---- local store -------------------------------------------------------------
 const now = () => new Date().toISOString();
+// v3 policy (sidecar boards only; v2 repo-local boards are unchanged): LEAVING a
+// human gate is a human decision that autoDev core records (autodev approve /
+// reject → Control API). Core identifies itself with AUTODEV_ACTOR; the bounded
+// job core dispatches after a decision carries AUTODEV_GATE_TICKET=<issue>:<event>
+// for exactly that issue. A model in a heartbeat or a plugin session has neither.
+const GATE_STAGES = ['prd_review', 'ready_for_human_review', 'ready_for_human_acceptance'];
+function gateGuard(issue, from, to) {
+  if (!process.env.AUTODEV_BOARD_DIR || from === to || !GATE_STAGES.includes(from)) return;
+  if (process.env.AUTODEV_ACTOR) return;
+  const ticket = (process.env.AUTODEV_GATE_TICKET || '').split(':')[0];
+  if (ticket && ticket.toLowerCase() === issue.id.toLowerCase()) return;
+  die(`${issue.id} is at a human gate (${from}); leaving it is a human decision that autoDev records — the operator runs \`autodev approve ${issue.id}\` or \`autodev reject ${issue.id} <reason>\`. Nothing was changed.`);
+}
 function ensureBoard() { mkdirSync(BOARD, { recursive: true }); }
 function issuePath(id) { return join(BOARD, `${id}.json`); }
 function writeAtomic(path, obj) {
@@ -124,6 +137,7 @@ const local = {
     const issue = loadIssue(a[0]);
     const from = issue.stage; const to = a[1];
     stageName(to); // validate
+    gateGuard(issue, from, to);
     const note = flags(a.slice(2)).note || null;
     issue.stage = to;
     issue.history.push({ at: now(), from, to, note });
@@ -144,7 +158,7 @@ const local = {
     const f = flags(a.slice(1));
     if (f.title) issue.title = f.title;
     if (f.desc) issue.description = f.desc;
-    if (f.stage) { stageName(f.stage); issue.history.push({ at: now(), from: issue.stage, to: f.stage, note: 'update-issue' }); issue.stage = f.stage; }
+    if (f.stage) { stageName(f.stage); gateGuard(issue, issue.stage, f.stage); issue.history.push({ at: now(), from: issue.stage, to: f.stage, note: 'update-issue' }); issue.stage = f.stage; }
     if (f.labels) issue.labels = f.labels.split(',');
     saveIssue(issue);
     queueMirror({ op: 'update', id: issue.id, ...f });

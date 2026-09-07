@@ -8,7 +8,7 @@
 // this file.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { emptyResult, registerExecutor, repoSnapshot, repoDelta, mergeDelta } from '../executor.mjs';
+import { emptyResult, registerExecutor, repoSnapshot, repoDelta, mergeDelta, jobEnv } from '../executor.mjs';
 
 const USAGE_LIMIT_RE = /usage limit|rate limit/i;
 
@@ -54,7 +54,7 @@ export class ClaudeCodeExecutor {
       let out = '', err = '';
       let child;
       try {
-        child = spawn(this.#bin, args, { cwd: job.cwd || process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+        child = spawn(this.#bin, args, { cwd: job.cwd || process.cwd(), env: jobEnv(job), stdio: ['ignore', 'pipe', 'pipe'] });
       } catch (e) {
         return resolve(emptyResult(this.id, 'unavailable', { summary: String(e.message), started_at: started }));
       }

@@ -11,6 +11,7 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { projectRuntimeDir } from '../core/paths.mjs';
 import { homedir, hostname } from 'node:os';
 import { spawnSync } from 'node:child_process';
 
@@ -31,8 +32,13 @@ export function satisfies(version, range) {
 }
 
 // Token resolution — machine-local, never in the repo or deployment.json (PRD §51/§64).
-export function resolveToken(env = process.env) {
+export function projectTokenPath(projectId, env = process.env) { return projectId ? join(projectRuntimeDir(projectId, env), 'brain.token') : null; }
+// Order: env → the project's own scoped token (sidecar runtime dir, never in git)
+// → the operator token file → the macOS Keychain item "brain".
+export function resolveToken(env = process.env, { projectId = null } = {}) {
   if (env.BRAIN_TOKEN) return { token: env.BRAIN_TOKEN, source: 'env' };
+  const pt = projectTokenPath(projectId, env);
+  if (pt && existsSync(pt)) { const t = readFileSync(pt, 'utf8').split('\n')[0].trim().split(/\s+/)[0]; if (t) return { token: t, source: pt, scoped: true }; }
   const file = join(env.HOME || homedir(), '.config', 'autodev', 'brain.token');
   if (existsSync(file)) { const t = readFileSync(file, 'utf8').split('\n')[0].trim().split(/\s+/)[0]; if (t) return { token: t, source: file }; }
   if (process.platform === 'darwin' && env.AUTODEV_NO_KEYCHAIN !== '1') {
@@ -93,6 +99,9 @@ export class BrainClient {
   context(ctx) { return this.post('/v1/context', ctx); }
   search(params) { return this.get(`/v1/search?${new URLSearchParams(Object.entries(params).filter(([, v]) => v != null))}`); }
   handoff(h, o) { return this.post('/v1/handoffs', h, o); }
+  tokens() { return this.get('/v1/tokens'); }
+  createToken(t) { return this.post('/v1/tokens', t); }
+  revokeToken(clientId) { return this.delete(`/v1/tokens/${encodeURIComponent(clientId)}`); }
   latestHandoff(params) { return this.get(`/v1/handoffs/latest?${new URLSearchParams(Object.entries(params).filter(([, v]) => v != null))}`); }
   decision(d, o) { return this.post('/v1/decisions', d, o); }
   learning(l, o) { return this.post('/v1/learnings', l, o); }

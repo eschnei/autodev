@@ -27,6 +27,7 @@ import { projectPersonas, claudeAgentsDir } from '../executors/claude/agents.mjs
 import { readWorkflowState, nextAction, describeState } from '../core/workflow/state.mjs';
 import { approve as gateApprove, reject as gateReject, jobFor, GateError } from '../core/workflow/gates.mjs';
 import { brainStatus, describeBrain, ensureBrainProject, contextForJob, recordHandoff, recordGateDecision } from '../brain/index.mjs';
+import { projectTokenPath } from '../brain/client.mjs';
 import { StateRepo, StateError } from '../core/state.mjs';
 import { appendEvent } from '../core/events.mjs';
 import { plan as migratePlan, apply as migrateApply, renderReport } from '../migrate/index.mjs';
@@ -61,7 +62,7 @@ usage: autodev [command] [args]      (no command = interactive shell)
   init [--name N] [--test cmd] [--brain-url U]   v3 setup: deployment + board in the sidecar; the repo stays untouched
   migrate [--from claude] [--dry-run] [--import-user]   translate an existing Claude/autoDev project into the sidecar + Brain (non-destructive)
   state [status|remote <url>|sync|takeover|release]   the sidecar state repo (workflow reality) + its private remote
-  brain [status|context [REQ]|search <q>|remember <text>]   the Brain connection (optional; degraded mode when unreachable)
+  brain [status|context [REQ]|search <q>|remember <text>|token]   the Brain connection (optional; degraded when unreachable); token = mint a project-scoped token
   agents [sync|install]  Agency roles + persona resolution; sync = adopt existing
                          ~/.claude/agents personas into the store and project the
                          store back out; install = fetch missing (consent-gated)
@@ -427,8 +428,19 @@ async function cmdBrain(ctx, sub, arg) {
   if (b.state !== 'connected') { console.error(`autodev: Brain is ${describeBrain(b)}`); return 1; }
   if (sub === 'context') { const c = await contextForJob(b, ctx, { role: 'operator', executor: 'cli', branch: ctx.identity?.branch, requirement_key: arg }); if (!c) { console.error('autodev: no context (project not registered?)'); return 1; } console.log(c.text); return 0; }
   if (sub === 'search') { if (!arg) { console.error('usage: autodev brain search <query>'); return 2; } const rows = await b.client.search({ q: arg, project_id: b.project_id }); if (!rows.length) { console.log('(no matches in scope)'); return 0; } for (const m of rows) console.log(`${m.id}  [${m.scope.type}] ${m.state}/${m.type}: ${m.content.slice(0, 120)}`); return 0; }
+  if (sub === 'token') {
+    // Least privilege: mint a token the server confines to THIS project and store it in the
+    // sidecar runtime dir (gitignored, 0600). From then on this project's autoDev uses it;
+    // the operator (admin) token stays out of the project's reach if you move it to the Keychain.
+    if (b.token_scoped) { console.log(`already using a project-scoped token (${b.token_source})`); return 0; }
+    const path = projectTokenPath(ctx.project.id);
+    const t = await b.client.createToken({ client_id: `autodev-${String(ctx.project.key || ctx.project.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${ctx.project.id.slice(-6)}`, projects: [b.project_id], permissions: ['read', 'write-observation', 'write-project'] });
+    mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, `${t.token}\n`, { mode: 0o600 });
+    console.log(`scoped token for ${b.project_id} stored at ${path} (client ${t.client_id}; server-enforced scope)\nnext: move the admin token out of ~/.config/autodev/brain.token into the Keychain — security add-generic-password -s brain -a $USER -w <token>`);
+    return 0;
+  }
   if (sub === 'remember') { if (!arg) { console.error('usage: autodev brain remember <content>'); return 2; } const m = await b.client.remember({ project_id: b.project_id, content: arg, provenance: [{ type: 'human_decision', source: process.env.USER || 'operator' }] }); console.log(`${m.id} [${m.scope.type}] ${m.state}`); return 0; }
-  console.error(`autodev: unknown brain subcommand "${sub}" (status | context [REQ] | search <q> | remember <text>)`); return 2;
+  console.error(`autodev: unknown brain subcommand "${sub}" (status | context [REQ] | search <q> | remember <text> | token)`); return 2;
 }
 
 function cmdDoctor(cwd) {

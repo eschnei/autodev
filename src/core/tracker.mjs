@@ -39,7 +39,7 @@ export class Tracker {
   get boardDir() { return this.#boardDir; }
   get sidecar() { return this.#sidecar; }
   // env a v2 script needs to see the same board this Tracker sees
-  get env() { return { AUTODEV_CONFIG: this.#configPath, ...(this.#sidecar ? { AUTODEV_BOARD_DIR: this.#boardDir } : {}) }; }
+  get env() { return { AUTODEV_CONFIG: this.#configPath, ...(this.#sidecar ? { AUTODEV_BOARD_DIR: this.#boardDir, AUTODEV_ACTOR: 'autodev-core' } : {}) }; }
   get instanceLabel() { return this.#cfg.tracker?.instance_label || null; }
 
   // ---- reads (local kind: direct, no subprocess) ----

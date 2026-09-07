@@ -24,7 +24,7 @@ check "invokes claude exactly once (the loop, no probe)" test "$(calls)" -eq 1
 check "runs /autodev:loop headless with json output"     grep -q -- '-p /autodev:loop --output-format json' "$CLAUDE_STUB_LOG"
 check "heartbeat touched"                                test -f "$RUNHOME/heartbeat"
 check "lock released after the tick"                     test ! -f "$RUNHOME/devloop.lock"
-check "result appended to today's jsonl log"             bash -c "grep -q '\"result\":\"ok\"' '$RUNHOME/logs/$(date +%F).jsonl'"
+check "result appended to today's jsonl log"             bash -c "grep -q '\"result\":\"ok\"' '$RUNHOME/logs/$(date -u +%F).jsonl'"
 check "no pause file on a healthy result"                test ! -f "$RUNHOME/rate-limited-until"
 
 echo "devloop-tick — allowlist is built from THIS repo's config:"

@@ -24,7 +24,7 @@ import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { emptyResult, registerExecutor, repoSnapshot, repoDelta, mergeDelta } from '../executor.mjs';
+import { emptyResult, registerExecutor, repoSnapshot, repoDelta, mergeDelta, jobEnv } from '../executor.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const LIMIT_RE = /rate limit|usage limit|quota|too many requests|429/i;
@@ -85,7 +85,7 @@ export class CodexExecutor {
     const snap = repoSnapshot(job.cwd || process.cwd());
     return new Promise((resolve) => {
       let out = '', err = '', child;
-      try { child = spawn(this.#bin, args, { cwd: job.cwd || process.cwd(), env: process.env, stdio: ['pipe', 'pipe', 'pipe'] }); }
+      try { child = spawn(this.#bin, args, { cwd: job.cwd || process.cwd(), env: jobEnv(job), stdio: ['pipe', 'pipe', 'pipe'] }); }
       catch (e) { rmSync(tmp, { recursive: true, force: true }); return resolve(emptyResult(this.id, 'unavailable', { summary: String(e.message), started_at: started })); }
       this.#running.set(job.job_id, child);
       child.stdout.on('data', (d) => { out += d; });
