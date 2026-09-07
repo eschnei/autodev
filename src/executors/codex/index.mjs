@@ -50,6 +50,7 @@ export function prohibitions(job, cfg = {}) {
   if (!allow.some((a) => /git push/.test(a))) rules.push('Do not push at all in this run.');
   if (!allow.some((a) => /gh pr/.test(a))) rules.push('Do not use `gh`.');
   rules.push('Never edit AGENTS.md or CLAUDE.md (team-owned).', 'Do not read or write anything outside this repository except via the tools you were given.');
+  if (job.env?.AUTODEV_TRACKER) rules.push(`Board logging: \`node ${job.env.AUTODEV_TRACKER} <command>\` (the board is outside the repo; AUTODEV_CONFIG/AUTODEV_BOARD_DIR are set).`);
   return `Hard rules for this run (autoDev enforces them and verifies afterwards):\n${rules.map((r) => `- ${r}`).join('\n')}`;
 }
 
@@ -63,7 +64,7 @@ export class CodexExecutor {
     return r.status === 0;
   }
   async capabilities() {
-    return { id: this.id, auth: 'subscription', streaming: true, tool_allowlist: false, sandbox: true, cancel: true, usage: false, executes_commands: 'sandboxed', guards: 'prompt+post-verify' };
+    return { id: this.id, auth: 'subscription', streaming: true, tool_allowlist: false, sandbox: true, commits: false, cancel: true, usage: false, executes_commands: 'sandboxed', guards: 'prompt+post-verify' };   // commits:false — workspace-write keeps .git read-only; core checkpoints after the job
   }
   async probe() {
     const r = await this.execute({ job_id: `probe_${Date.now()}`, task: 'reply with exactly: ok', permissions: { allowed_tools: [] }, cwd: process.cwd(), role: 'probe' });

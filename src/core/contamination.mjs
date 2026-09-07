@@ -9,7 +9,7 @@
 // v2 deployments legitimately carry `.autodev/` (config + board) and `.claude/`;
 // a sidecar (v3-native or migrated) project must not gain a NEW `.autodev/`.
 
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { git } from './git.mjs';
 
@@ -29,6 +29,8 @@ export function scanContamination(root, { sidecar = false } = {}) {
     if (entries.includes(name)) found.push({ path: name, reason: sidecarOnly ? 'sidecar project gained a repo-local autoDev dir' : 'sidecar-owned artifact inside the repo' });
   }
   for (const e of entries) if (FORBIDDEN_PATTERNS.some((re) => re.test(e))) found.push({ path: e, reason: 'looks like Brain/Marj state' });
+  // the v2 plugin's identity pointer (.claude/CLAUDE.md) is legit for v2 projects; a sidecar project must not gain one
+  if (sidecar) { try { const c = readFileSync(join(root, '.claude', 'CLAUDE.md'), 'utf8'); if (/autodev/i.test(c)) found.push({ path: '.claude/CLAUDE.md', reason: 'v2 plugin identity pointer written into a sidecar project' }); } catch {} }
   // executor-projected personas belong to the user's Claude home, never the repo
   const agents = join(root, '.claude', 'agents');
   if (existsSync(agents)) { try { const a = readdirSync(agents).filter((f) => f.startsWith('autodev-')); if (a.length) found.push({ path: '.claude/agents', reason: `${a.length} autodev-projected persona file(s) inside the repo` }); } catch {} }

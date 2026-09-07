@@ -28,6 +28,7 @@ import { loadDeployment } from './config/index.mjs';
 import { makeJob, getExecutor } from '../executors/executor.mjs';
 import { scanContamination, contaminationDelta, describeContamination, isSidecarProject } from './contamination.mjs';
 import { appendEvent } from './events.mjs';
+import { jobBoardEnv } from '../control/api.mjs';
 import '../executors/claude/index.mjs';
 import '../executors/codex/index.mjs';
 import { resolveProject } from './project.mjs';
@@ -112,7 +113,8 @@ export async function tick(repo, { executorId, log = () => {}, env = process.env
 
     // --- the bounded unit of work, through the executor seam ---
     const allow = assertAllowlistInvariants(headlessAllowlist(cfg), cfg);
-    const job = makeJob({ role: 'loop', task: '/autodev:loop', cwd: repo, permissions: { allowed_tools: allow }, context: { config: configPath, branch: ctx.identity?.branch } });
+    const boardEnv = jobBoardEnv(ctx);
+    const job = makeJob({ role: 'loop', task: '/autodev:loop', cwd: repo, permissions: { allowed_tools: allow }, env: boardEnv, context: { config: configPath, branch: ctx.identity?.branch } });
     const bc = await contextForJob(brain, ctx, { role: 'loop', executor: executor.id, branch: ctx.identity?.branch, log });
     if (bc) { job.context.brain = { bundle_id: bc.bundle.id, memories: bc.bundle.memories.map((m) => ({ id: m.id, revision: m.revision })) }; job.task = `${bc.text}\n\n---\n\n${job.task}`; }
     const caps = await executor.capabilities();
@@ -137,7 +139,6 @@ export async function tick(repo, { executorId, log = () => {}, env = process.env
     }
 
     // --- operator digest (self-gates on reporting.cadence) + Linear mirror flush (self-gates) ---
-    const boardEnv = ctx.project?.tracker?.mode === 'sidecar' ? { AUTODEV_BOARD_DIR: ctx.project.tracker.location } : {};
     for (const [script, args] of [[join(SCRIPTS, 'report.mjs'), []], [join(SCRIPTS, 'tracker.mjs'), ['flush-mirror']]]) {
       const r = spawnSync('node', [script, ...args], { cwd: repo, env: { ...env, AUTODEV_CONFIG: configPath, ...boardEnv }, encoding: 'utf8' });
       if (r.status !== 0) appendFileSync(errLog, `${script}: ${r.stderr}\n`);

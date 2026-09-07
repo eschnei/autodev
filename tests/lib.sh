@@ -66,8 +66,7 @@ cat > "$STUBBIN/claude" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${CLAUDE_STUB_LOG:-/dev/null}"
 # a model must never inherit core-only vars; log them if they are present so tests can assert
-[ -n "${AUTODEV_ACTOR:-}" ] && printf 'ENV AUTODEV_ACTOR=%s\n' "$AUTODEV_ACTOR" >> "${CLAUDE_STUB_LOG:-/dev/null}"
-[ -n "${AUTODEV_GATE_TICKET:-}" ] && printf 'ENV AUTODEV_GATE_TICKET=%s\n' "$AUTODEV_GATE_TICKET" >> "${CLAUDE_STUB_LOG:-/dev/null}"
+for v in AUTODEV_ACTOR AUTODEV_GATE_TICKET AUTODEV_BOARD_DIR AUTODEV_CONFIG AUTODEV_TRACKER; do [ -n "${!v:-}" ] && printf 'ENV %s=%s\n' "$v" "${!v}" >> "${CLAUDE_STUB_LOG:-/dev/null}.env"; done
 # CLAUDE_STUB_TOUCH=<relative path>: pretend the model created a file in its cwd
 if [ -n "${CLAUDE_STUB_TOUCH:-}" ]; then mkdir -p "$(dirname "$CLAUDE_STUB_TOUCH")" && echo model > "$CLAUDE_STUB_TOUCH"; fi
 case "${CLAUDE_STUB_MODE:-ok}" in
@@ -89,6 +88,9 @@ cat > "$STUBBIN/codex" <<'EOF'
 #!/usr/bin/env bash
 PROMPT=$(cat)
 printf 'ARGS: %s\nPROMPT: %s\n---\n' "$*" "$(printf '%s' "$PROMPT" | tr '\n' ' ')" >> "${CODEX_STUB_LOG:-/dev/null}"
+# CODEX_STUB_TOUCH=<relative path>: pretend the model changed a file (left uncommitted — the sandbox cannot commit)
+if [ -n "${CODEX_STUB_TOUCH:-}" ]; then mkdir -p "$(dirname "$CODEX_STUB_TOUCH")" && echo codex > "$CODEX_STUB_TOUCH"; fi
+for v in AUTODEV_BOARD_DIR AUTODEV_TRACKER; do [ -n "${!v:-}" ] && printf 'ENV %s=%s\n' "$v" "${!v}" >> "${CODEX_STUB_LOG:-/dev/null}.env"; done
 OUT=""; prev=""; for a in "$@"; do [[ "$prev" == "-o" ]] && OUT="$a"; prev="$a"; done
 case "${CODEX_STUB_MODE:-ok}" in
   ok)

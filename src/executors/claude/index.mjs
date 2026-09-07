@@ -8,6 +8,9 @@
 // this file.
 
 import { spawn, spawnSync } from 'node:child_process';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const ENGINE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 import { emptyResult, registerExecutor, repoSnapshot, repoDelta, mergeDelta, jobEnv } from '../executor.mjs';
 
 const USAGE_LIMIT_RE = /usage limit|rate limit/i;
@@ -46,7 +49,8 @@ export class ClaudeCodeExecutor {
   }
 
   execute(job) {
-    const args = ['-p', job.task, '--output-format', 'json'];
+    // the engine's own commands/reference/scripts, not whatever plugin version happens to be installed
+    const args = ['-p', job.task, '--output-format', 'json', '--plugin-dir', process.env.AUTODEV_PLUGIN_DIR || ENGINE_ROOT];
     for (const t of job.permissions?.allowed_tools || []) args.push('--allowedTools', t);
     const started = new Date().toISOString();
     const snap = repoSnapshot(job.cwd || process.cwd());

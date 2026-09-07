@@ -28,7 +28,7 @@ check "get_requirement unknown → not_found"      bash -c "cd '$R' && node '$CL
 
 echo "marj — gates cannot be crossed by a controller:"
 (cd "$R" && node "$TR" move AD-1 prd_review >/dev/null)
-: > "$CLAUDE_STUB_LOG"
+: > "$CLAUDE_STUB_LOG"; : > "$CLAUDE_STUB_LOG.env"
 check_out "continue_requirement at Gate 1 is refused" "at a human gate" bash -c "cd '$R' && node '$CLI' continue AD-1 2>&1; true"
 check "…no executor call was made"               bash -c "! grep -q . '$CLAUDE_STUB_LOG'"
 check_out "reject_gate needs a reason"           "needs a reason" bash -c "cd '$R' && node '$CLI' control reject_gate '{\"id\":\"AD-1\"}' 2>&1; true"
@@ -73,7 +73,7 @@ check "a rejected step stops the plan"           n "$CT $API const s=new Control
 
 echo "marj — ClaudeCodeController: intent in, actions through the API, audited (M-MARJ-2/4):"
 export CLAUDE_STUB_MODE=intent
-: > "$CLAUDE_STUB_LOG"
+: > "$CLAUDE_STUB_LOG"; : > "$CLAUDE_STUB_LOG.env"
 export CLAUDE_STUB_INTENT='{"goal":"show what needs you","steps":[{"action":"get_blockers"}],"questions":[],"confidence":0.9}'
 OUT=$(cd "$R" && node "$CLI" what needs me today 2>&1)
 check "banner-less one-shot prints Marj's goal"  has 'Marj: show what needs you'
@@ -113,7 +113,7 @@ NOCLI=$(mkrepo NoCli); git -C "$NOCLI" add -A >/dev/null; git -C "$NOCLI" commit
 check "no claude on PATH → controller unavailable, status still fine" bash -c "cd '$NOCLI' && PATH=/usr/bin:/bin:\$(dirname \$(command -v node)) node '$CLI' status | grep -q 'Controller: unavailable — claude-code CLI not found'"
 check "marj setup never writes into the repo"    bash -c "cd '$R' && node '$CLI' marj setup | grep -q 'autodev marj enable' && clean '$R'"
 check "marj contract prints the contract"        bash -c "cd '$R' && node '$CLI' marj contract | grep -q '^not_authority:'"
-check "marj enable registers a LOCAL-scope MCP server for this repo (via the claude CLI), repo untouched" bash -c "cd '$R' && : > '$CLAUDE_STUB_LOG' && node '$CLI' marj enable | grep -q 'Marj enabled for' && grep -q -- 'mcp add --scope local autodev -- autodev mcp' '$CLAUDE_STUB_LOG' && clean '$R'"
+check "marj enable registers a LOCAL-scope MCP server for this repo (via the claude CLI), repo untouched" bash -c "cd '$R' && : > '$CLAUDE_STUB_LOG'; : > '$CLAUDE_STUB_LOG.env' && node '$CLI' marj enable | grep -q 'Marj enabled for' && grep -q -- 'mcp add --scope local autodev -- autodev mcp' '$CLAUDE_STUB_LOG' && clean '$R'"
 check "marj disable removes it"                  bash -c "cd '$R' && node '$CLI' marj disable | grep -q 'Marj disabled for' && grep -q -- 'mcp remove --scope local autodev' '$CLAUDE_STUB_LOG'"
 
 echo "marj — the MCP adapter serves the same surface (bootstrap Marj = a Claude Code session):"
@@ -150,7 +150,7 @@ check "delta sees a commit made during the job + a new untracked file" n "$EX im
 check "delta ignores pre-existing dirt"           n "$EX const s=repoSnapshot('$D'); const d=repoDelta(s); if(d.files.length||d.commits.length) throw JSON.stringify(d)"
 check "mergeDelta unions vendor-reported files"   n "$EX const r=mergeDelta({files_changed:['x.js']},{files:['b.txt'],commits:[]}); if(JSON.stringify(r.files_changed)!==JSON.stringify(['b.txt','x.js'])) throw JSON.stringify(r)"
 check "outside a git repo the delta is empty, not an error" n "$EX const s=repoSnapshot('/'); if(repoDelta(s).files.length) throw 'x'"
-: > "$CLAUDE_STUB_LOG"; export CLAUDE_STUB_MODE=ok
+: > "$CLAUDE_STUB_LOG"; : > "$CLAUDE_STUB_LOG.env"; export CLAUDE_STUB_MODE=ok
 ST=$(cd "$R" && node "$TR" create-issue --title lane-story --stage ready_for_ai_dev --labels autodev:marjco | tail -1)
 check "a real job through the CLI reports files the model created" bash -c "cd '$R' && CLAUDE_STUB_TOUCH=made-by-model.txt AUTODEV_CONTROLLER=none node '$CLI' control continue_requirement '{\"id\":\"$ST\"}' 2>/dev/null | jq -e '.files_changed==[\"made-by-model.txt\"]'"
 
@@ -200,10 +200,21 @@ check "a move INTO a gate is still the model's job" bash -c "AUTODEV_ACTOR=autod
 check "a ticket for a DIFFERENT issue does not open the gate" bash -c "AUTODEV_GATE_TICKET=AD-2:evt_x tr3 move AD-1 breakdown 2>&1 | grep -q 'human decision'"
 check "a ticket for THIS issue does (the post-decision job)" bash -c "AUTODEV_GATE_TICKET=AD-1:evt_x tr3 move AD-1 breakdown --note t | grep -q 'AD-1 ->'"
 check "v2 repo-local boards are unchanged (no guard without AUTODEV_BOARD_DIR)" bash -c "cd '$R' && node '$TR' create-issue --title v2gate --stage prd_review --labels autodev:marjco | grep -q '^AD-' && id=\$(ls '$R/.autodev/board' | grep -c 'AD-') && node '$TR' move AD-\$id breakdown | grep -q 'AD-'"
-: > "$CLAUDE_STUB_LOG"
-check "a model job never inherits the core actor, even if the operator's shell has it" bash -c "cd '$V3' && AUTODEV_ACTOR=leaked AUTODEV_CONTROLLER=none node '$CLI' control continue_requirement '{\"id\":\"AD-2\",\"role\":\"test\"}' >/dev/null 2>&1; ! grep -q 'ENV AUTODEV_ACTOR' '$CLAUDE_STUB_LOG'"
-: > "$CLAUDE_STUB_LOG"
-check "approve_gate hands the bounded job a one-issue ticket" bash -c "cd '$V3' && AUTODEV_CONTROLLER=none node '$CLI' control approve_gate '{\"id\":\"AD-2\"}' >/dev/null 2>&1; grep -q 'ENV AUTODEV_GATE_TICKET=AD-2:evt_' '$CLAUDE_STUB_LOG'"
-check "…and only for that job (a plain continue has none)" bash -c ": > '$CLAUDE_STUB_LOG'; cd '$V3' && AUTODEV_CONTROLLER=none node '$CLI' control continue_requirement '{\"id\":\"AD-2\",\"role\":\"test\"}' >/dev/null 2>&1; ! grep -q 'AUTODEV_GATE_TICKET' '$CLAUDE_STUB_LOG'"
+: > "$CLAUDE_STUB_LOG"; : > "$CLAUDE_STUB_LOG.env"
+check "a model job never inherits the core actor, even if the operator's shell has it" bash -c "cd '$V3' && AUTODEV_ACTOR=leaked AUTODEV_CONTROLLER=none node '$CLI' control continue_requirement '{\"id\":\"AD-2\",\"role\":\"test\"}' >/dev/null 2>&1; ! grep -q 'ENV AUTODEV_ACTOR' '$CLAUDE_STUB_LOG.env'"
+: > "$CLAUDE_STUB_LOG"; : > "$CLAUDE_STUB_LOG.env"
+check "approve_gate hands the bounded job a one-issue ticket" bash -c "cd '$V3' && AUTODEV_CONTROLLER=none node '$CLI' control approve_gate '{\"id\":\"AD-2\"}' >/dev/null 2>&1; grep -q 'ENV AUTODEV_GATE_TICKET=AD-2:evt_' '$CLAUDE_STUB_LOG.env'"
+check "…and only for that job (a plain continue has none)" bash -c ": > '$CLAUDE_STUB_LOG'; : > '$CLAUDE_STUB_LOG.env'; cd '$V3' && AUTODEV_CONTROLLER=none node '$CLI' control continue_requirement '{\"id\":\"AD-2\",\"role\":\"test\"}' >/dev/null 2>&1; ! grep -q 'AUTODEV_GATE_TICKET' '$CLAUDE_STUB_LOG.env'"
+
+echo "hardening — jobs see the sidecar board, run the engine's own plugin, and Codex work gets committed:"
+: > "$CLAUDE_STUB_LOG"; : > "$CLAUDE_STUB_LOG.env"; : > "$CODEX_STUB_LOG"; : > "$CODEX_STUB_LOG.env"
+SS=$(AUTODEV_ACTOR=autodev-core tr3 create-issue --title env-story --stage ready_for_ai_dev --labels autodev:gateco | tail -1)
+check "a Claude job in a sidecar project gets AUTODEV_CONFIG + AUTODEV_BOARD_DIR + the engine tracker" bash -c "cd '$V3' && AUTODEV_CONTROLLER=none node '$CLI' control continue_requirement '{\"id\":\"$SS\"}' >/dev/null 2>&1; grep -q 'ENV AUTODEV_BOARD_DIR=$GBOARD' '$CLAUDE_STUB_LOG.env' && grep -q 'ENV AUTODEV_CONFIG=$GCFG' '$CLAUDE_STUB_LOG.env' && grep -q 'ENV AUTODEV_TRACKER=$PLUGIN/scripts/tracker.mjs' '$CLAUDE_STUB_LOG.env'"
+check "…and runs with the engine as its plugin (--plugin-dir), not an installed copy" bash -c "grep -q -- '--plugin-dir $PLUGIN' '$CLAUDE_STUB_LOG'"
+check "…the task tells the model where the board is"   bash -c "grep -q 'this project.s board lives outside the repository' '$CLAUDE_STUB_LOG'"
+check "a Codex job is told the sandbox cannot commit and where the tracker is" bash -c "cd '$V3' && CODEX_STUB_TOUCH=work.txt AUTODEV_CONTROLLER=none node '$CLI' control continue_requirement '{\"id\":\"$SS\",\"executor\":\"codex\"}' > '$SANDBOX/cx.json' 2>/dev/null; grep -q 'sandbox cannot write .git' '$CODEX_STUB_LOG' && grep -q 'Board logging: .node .*scripts/tracker.mjs' '$CODEX_STUB_LOG' && grep -q 'ENV AUTODEV_BOARD_DIR=$GBOARD' '$CODEX_STUB_LOG.env'"
+check "…core committed the Codex work on the lane branch with the model's summary" bash -c "jq -e '.checkpoint.committed==true and .checkpoint.files==1' '$SANDBOX/cx.json' || { echo 'cx.json:'; cat '$SANDBOX/cx.json'; exit 1; }; L=\$(jq -r .lane.path '$SANDBOX/cx.json'); git -C \"\$L\" log -1 --format=%s | grep -q 'sc-$SS.*ok' || { git -C \"\$L\" log -1 --format=%s; exit 1; }"
+check "…a clean tree after a Codex job → no checkpoint"  bash -c "cd '$V3' && AUTODEV_CONTROLLER=none node '$CLI' control continue_requirement '{\"id\":\"$SS\",\"executor\":\"codex\"}' | jq -e '.checkpoint==null'"
+check "a v2 plugin identity pointer inside a sidecar project is contamination" bash -c "mkdir -p '$V3/.claude' && echo '# autoDev pointer' > '$V3/.claude/CLAUDE.md' && cd '$V3' && node '$CLI' control get_status | jq -e '.contamination[0].path==\".claude/CLAUDE.md\"'; rm -rf '$V3/.claude'"
 
 exit $FAIL

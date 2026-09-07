@@ -12,6 +12,9 @@
 // src/core/workflow/gates.mjs.
 
 import { existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const ENGINE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 import { spawnSync } from 'node:child_process';
 import { resolveProject, saveProject, loadRegistry, loadProject } from '../core/project.mjs';
 import { Tracker } from '../core/tracker.mjs';
@@ -127,20 +130,26 @@ export class ControlSession {
     const cwd = lane ? lane.cwd : ctx.identity.root;
     const sidecar = isSidecarProject(ctx);
     const before = scanContamination(cwd, { sidecar });
-    const job = makeJob({ role, task: lane ? `${task}\n\nWorkspace: you are in an isolated worktree on branch ${lane.branch} (${cwd}). Commit here; never switch branches or touch the main checkout.` : task, cwd, project_id: ctx.project.id, requirement_id: issue?.uid || null, permissions: { allowed_tools: allow }, env, context: { branch: lane ? lane.branch : ctx.identity.branch, issue: issue?.id || null, actor: this.#actor, lane: lane ? { path: lane.cwd, branch: lane.branch, created: lane.created } : null, ...extraContext } });
+    const caps = await executor.capabilities();
+    // the model must see the same board core sees (sidecar projects have no .autodev/ in the repo) — never core's actor
+    const boardEnv = jobBoardEnv(ctx);
+    const commitNote = caps.commits === false ? `\n\nCommits: your sandbox cannot write .git. Leave your changes in the working tree; autoDev commits them after this run on the current branch with your final summary as the message.` : '';
+    const job = makeJob({ role, task: `${lane ? `${task}\n\nWorkspace: you are in an isolated worktree on branch ${lane.branch} (${cwd}). Commit here; never switch branches or touch the main checkout.` : task}${boardEnv.AUTODEV_BOARD_DIR ? `\n\nBoard: this project's board lives outside the repository. Log through \`node ${boardEnv.AUTODEV_TRACKER}\` (AUTODEV_CONFIG and AUTODEV_BOARD_DIR are set in your environment); do not look for .autodev/ in the repo.` : ''}${commitNote}`, cwd, project_id: ctx.project.id, requirement_id: issue?.uid || null, permissions: { allowed_tools: allow }, env: { ...boardEnv, ...env }, context: { branch: lane ? lane.branch : ctx.identity.branch, issue: issue?.id || null, actor: this.#actor, lane: lane ? { path: lane.cwd, branch: lane.branch, created: lane.created } : null, ...extraContext } });
     const bc = await contextForJob(ctx.brain, ctx, { role, executor: exec, branch: ctx.identity.branch, requirement_key: issue?.id });
     if (bc) { job.context.brain = { bundle_id: bc.bundle.id, memories: bc.bundle.memories.map((m) => ({ id: m.id, revision: m.revision })) }; job.task = `${bc.text}\n\n---\n\n${job.task}`; }
     running.set(job.job_id, { executor, job });
     appendEvent(ctx.project.id, { type: 'job.started', job_id: job.job_id, role, executor: exec, issue: issue?.id || null, actor: this.#actor, context_bundle_id: bc?.bundle.id || null, lane: job.context.lane });
     const result = await executor.execute(job);
     running.delete(job.job_id);
+    // executors whose sandbox cannot commit (Codex): core records their work on the current branch
+    if (caps.commits === false && result.status === 'completed') result.checkpoint = checkpointCommit(cwd, { issue, role, summary: result.summary, executor: exec });
     // M12A: a job that leaves sidecar-owned artifacts in the repo is recorded as contaminated
     const contamination = contaminationDelta(cwd, before, { sidecar });
     result.contamination = contamination;
     await recordHandoff(ctx.brain, ctx, job, result, { requirement_key: issue?.id });
     appendEvent(ctx.project.id, { type: 'job.finished', job_id: job.job_id, status: result.status, executor: exec, issue: issue?.id || null, summary: (result.summary || '').slice(0, 500), files_changed: result.files_changed, commits: result.commits || [], contamination, lane: job.context.lane });
     if (contamination.length) appendEvent(ctx.project.id, { type: 'contamination.detected', job_id: job.job_id, issue: issue?.id || null, paths: contamination, cwd });
-    return { job_id: job.job_id, executor: exec, role, status: result.status, summary: result.summary, files_changed: result.files_changed, commits: result.commits || [], tests_failed: result.tests_failed, reset_at: result.reset_at, brain_context: bc?.bundle.id || null, lane: job.context.lane, contamination };
+    return { job_id: job.job_id, executor: exec, role, status: result.status, summary: result.summary, files_changed: result.files_changed, commits: result.commits || [], checkpoint: result.checkpoint || null, tests_failed: result.tests_failed, reset_at: result.reset_at, brain_context: bc?.bundle.id || null, lane: job.context.lane, contamination };
   }
 
   // ---- reads ------------------------------------------------------------------------------
@@ -281,6 +290,27 @@ export class ControlSession {
     await r.executor.cancel(job_id);
     return { job_id, cancelled: true };
   }
+}
+
+// What a v2 script inside the model's process needs to find THIS project's board:
+// the sidecar deployment + board dir (never core's actor), and the engine's own
+// tracker facade so the model does not depend on an installed plugin version.
+export function jobBoardEnv(ctx) {
+  const env = { AUTODEV_ENGINE_ROOT: ENGINE_ROOT, AUTODEV_TRACKER: join(ENGINE_ROOT, 'scripts', 'tracker.mjs') };
+  if (ctx.legacy?.configPath) env.AUTODEV_CONFIG = ctx.legacy.configPath;
+  if (ctx.project?.tracker?.mode === 'sidecar') env.AUTODEV_BOARD_DIR = ctx.project.tracker.location;
+  return env;
+}
+// Post-job commit for sandboxed executors. Only the current branch, only when
+// the tree is dirty, message from the model's own summary; never pushes.
+export function checkpointCommit(cwd, { issue, role, summary, executor }) {
+  const dirty = git(cwd, ['status', '--porcelain']);
+  if (!dirty) return null;
+  const first = String(summary || '').split('\n').map((l) => l.trim()).find(Boolean) || `${role} work`;
+  const msg = `${issue ? `[sc-${issue.id}] ` : ''}${first.slice(0, 72)}\n\nCommitted by autoDev after a ${executor} job (sandbox cannot write .git).`;
+  try { git(cwd, ['add', '-A'], { check: true }); git(cwd, ['commit', '-q', '-m', msg], { check: true }); }
+  catch (e) { return { committed: false, error: e.message, files: dirty.split('\n').length }; }
+  return { committed: true, sha: git(cwd, ['rev-parse', '--short', 'HEAD']), files: dirty.split('\n').length, message: first.slice(0, 72) };
 }
 
 function brief(i) { return { id: i.id, uid: i.uid || null, title: i.title, stage: i.stage, labels: i.labels || [], updated_at: i.updated_at }; }
