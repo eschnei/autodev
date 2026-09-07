@@ -64,26 +64,30 @@ export function jobEnv(job, base = process.env) {
 // Ground truth for files_changed: the repo delta across the job (HEAD moved +
 // working tree), independent of what the vendor reports. Adapters take a
 // snapshot before spawning and merge the delta into the result afterwards.
+// porcelain lines are "XY path" — the leading status char may be a space, so never trim the block
+const gitRaw = (cwd, args) => { const r = spawnSync('git', args, { cwd, encoding: 'utf8' }); return r.status === 0 ? r.stdout : null; };
+const gitOut = (cwd, args) => { const o = gitRaw(cwd, args); return o == null ? null : o.trim(); };
+const parseStatus = (st) => new Set((st || '').split('\n').filter((l) => l.length > 3).map((l) => l.slice(3).replace(/^.* -> /, '').replace(/^"|"$/g, '')));
 export function repoSnapshot(cwd) {
-  const g = (args) => { const r = spawnSync('git', args, { cwd, encoding: 'utf8' }); return r.status === 0 ? r.stdout.trim() : null; };
-  const head = g(['rev-parse', 'HEAD']);
-  return { cwd, head, status: g(['status', '--porcelain', '--untracked-files=all']) ?? '', git: head !== null || g(['rev-parse', '--is-inside-work-tree']) === 'true' };
+  const head = gitOut(cwd, ['rev-parse', 'HEAD']);
+  return { cwd, head, status: gitRaw(cwd, ['status', '--porcelain', '--untracked-files=all']) ?? '', git: head !== null || gitOut(cwd, ['rev-parse', '--is-inside-work-tree']) === 'true' };
 }
 export function repoDelta(before, cwd = before?.cwd) {
   if (!before?.git) return { files: [], commits: [], head: null };
-  const g = (args) => { const r = spawnSync('git', args, { cwd, encoding: 'utf8' }); return r.status === 0 ? r.stdout.trim() : null; };
+  const g = (args) => gitOut(cwd, args);
   const head = g(['rev-parse', 'HEAD']);
   const committed = before.head && head && before.head !== head ? (g(['diff', '--name-only', `${before.head}..${head}`]) || '') : '';
   const commits = before.head && head && before.head !== head ? (g(['log', '--format=%h %s', `${before.head}..${head}`]) || '').split('\n').filter(Boolean) : [];
-  const parse = (st) => new Set((st || '').split('\n').filter(Boolean).map((l) => l.slice(3).trim().replace(/^.* -> /, '')));
-  const beforeWt = parse(before.status), afterWt = parse(g(['status', '--porcelain', '--untracked-files=all']) ?? '');
+  const beforeWt = parseStatus(before.status), afterWt = parseStatus(gitRaw(cwd, ['status', '--porcelain', '--untracked-files=all']) ?? '');
   const files = new Set(committed.split('\n').filter(Boolean));
   for (const f of afterWt) if (!beforeWt.has(f)) files.add(f);
   return { files: [...files].sort(), commits, head };
 }
-export function mergeDelta(result, delta) {
+export function mergeDelta(result, delta, cwd = null) {
   if (!delta) return result;
-  result.files_changed = [...new Set([...(result.files_changed || []), ...delta.files])].sort();
+  // vendor-reported paths may be absolute; normalize to repo-relative so the union dedupes
+  const rel = (p) => (cwd && typeof p === 'string' && p.startsWith(cwd + '/')) ? p.slice(cwd.length + 1) : p;
+  result.files_changed = [...new Set([...(result.files_changed || []).map(rel), ...delta.files])].sort();
   result.commits = delta.commits;
   return result;
 }

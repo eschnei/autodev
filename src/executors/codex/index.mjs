@@ -79,6 +79,7 @@ export class CodexExecutor {
     const last = join(tmp, 'last-message.txt');
     const args = ['exec', '--json', '-c', 'approval_policy=never', '-s', 'workspace-write', '-C', job.cwd || process.cwd(), '-o', last, '--skip-git-repo-check'];
     if (network) args.push('-c', 'sandbox_workspace_write.network_access=true');
+    if (job.env?.AUTODEV_BOARD_DIR) args.push('--add-dir', job.env.AUTODEV_BOARD_DIR);   // the sidecar board is outside the workspace; the facade must write it
     if (job.context?.model) args.push('-m', job.context.model);
     args.push('-');
     const prompt = job.role === 'probe' ? job.task : `${prohibitions(job, this.#cfg)}\n\n${inlineReferences(job.task)}`;
@@ -100,7 +101,7 @@ export class CodexExecutor {
         this.#running.delete(job.job_id);
         let lastMsg = null; try { lastMsg = readFileSync(last, 'utf8').trim() || null; } catch {}
         rmSync(tmp, { recursive: true, force: true });
-        resolve(mergeDelta(this.#translate({ code, signal, out, err, started, cancelled, lastMsg }), repoDelta(snap)));
+        resolve(mergeDelta(this.#translate({ code, signal, out, err, started, cancelled, lastMsg }), repoDelta(snap), snap.cwd));
       });
       child.stdin.on('error', () => {});
       child.stdin.end(prompt);

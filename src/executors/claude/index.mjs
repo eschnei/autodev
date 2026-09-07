@@ -72,7 +72,7 @@ export class ClaudeCodeExecutor {
         if (timer) clearTimeout(timer);
         const wasCancelled = this.#running.get(job.job_id)?.cancelled === true;
         this.#running.delete(job.job_id);
-        resolve(mergeDelta(this.#translate({ code, signal, out, err, started, cancelled: wasCancelled }), repoDelta(snap)));
+        resolve(mergeDelta(this.#translate({ code, signal, out, err, started, cancelled: wasCancelled }), repoDelta(snap), snap.cwd));
       });
     });
   }
