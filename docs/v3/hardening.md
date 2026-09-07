@@ -18,8 +18,7 @@ The checklist Eric set for the phase, what was done for each item, and how it wa
 
 ## Still open after this phase
 
-- **Per-project Brain tokens.** One operator token reaches every project when a query omits `project_id`. autoDev never omits it, but a model with a shell in project A could read the token file and query project B. Brain's token file already carries per-token permissions; project scoping is the next step there.
-- **Plugin slash commands in a Marj session** can still move cards directly through the tracker facade. Enforcement would mean the facade refusing writes without an actor, which also affects the v2 plugin path; decision pending.
+- ~~Per-project Brain tokens~~ and ~~plugin slash commands crossing gates~~ — both closed in the follow-up pass below.
 - **API trackers** (Linear, Shortcut) still take the plugin path for board mutations.
 - The lane's branch base is the parent feature's branch only when the story carries a `child_of` / `parent` relation; otherwise the main checkout's current branch.
 
