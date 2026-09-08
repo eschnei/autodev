@@ -1,7 +1,7 @@
 {
   "name": "autodev",
   "description": "Autonomous PM→dev→QA engine driven by Claude Code — turns approved PRDs into QA'd, human-reviewable, shipped code through a board (a local git-native board or Linear), with two human gates. Nothing runs until you invoke /autodev:init, /autodev:new, or /autodev:loop.",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "author": {
     "name": "Eric Schneider"
   },
