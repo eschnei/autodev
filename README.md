@@ -21,6 +21,54 @@ In Claude Code, once per machine:
 /plugin install autodev@autodev-marketplace
 ```
 
+## The `autodev` CLI (v3, in progress)
+
+autoDev is becoming a model-neutral orchestrator with its own entry point. The CLI
+already exists and drives the same v2 engine through an executor adapter, so Claude
+is one interchangeable executor rather than the orchestrator:
+
+```bash
+git clone https://github.com/eschnei/autodev && cd autodev && npm link   # dev install
+cd /path/to/your/repo
+autodev            # interactive shell: status · continue · executor · approve · exit
+autodev status     # one-shot
+```
+
+Running `autodev` in a repo registers it in a **sidecar** project registry under
+`~/Library/Application Support/autoDev/state/` — one git repo holding the
+registry, project metadata, boards, and events (workflow reality) — and writes
+nothing into the repository: `git status` stays clean. `autodev init` sets a new
+project up the same way (deployment + board in the sidecar, commands detected
+from `package.json`). Existing `.autodev/deployment.json` deployments are read
+as-is with their repo-local board.
+
+An existing Claude/autoDev project moves over with `autodev migrate --from claude`
+(`--dry-run` first): every artifact — `CLAUDE.md`/`AGENTS.md`, `.claude/`, `.mcp.json`,
+`.autodev/` config and board, `specs/`, git history, and your user-level Claude
+config — is classified portable / adaptable / vendor-specific / legacy and reported;
+the portable ones are imported into the sidecar (normalized deployment, board copy)
+and Brain (rule candidates, conventions, requirements), idempotently. Nothing in the
+repo is modified or deleted; user-level rules become candidates you import
+explicitly (`--import-user`).
+
+Durability and continuity across machines come from a **private** state remote,
+never the application repo and never Brain:
+
+```bash
+# on the Mac mini, once:
+git init --bare -b main "$HOME/Library/Application Support/autoDev/state.git"
+# on each machine:
+autodev state remote 'macmini:Library/Application Support/autoDev/state.git'
+autodev state sync            # fast-forward pull, then push
+autodev state takeover        # one active writer per project; explicit hand-over
+``` With [Brain](https://github.com/eschnei/brain) configured (`brain.enabled`,
+`brain.url`; token from `$BRAIN_TOKEN`, `~/.config/autodev/brain.token`, or the
+macOS Keychain) every job gets the project's scoped memory in front of its task
+and leaves a handoff behind, so a different executor can continue the work; when
+Brain is unreachable autoDev says so and keeps working in degraded mode. The design lives in [`docs/v3/decisions.md`](./docs/v3/decisions.md) and the
+behavior the migration may not regress in
+[`docs/v3-compatibility-contract.md`](./docs/v3-compatibility-contract.md).
+
 ## Quickstart
 
 You need `git`, `node` 18+, `jq` — plus `gh` and a GitHub remote for the default
@@ -103,7 +151,7 @@ Both feed the human gates, never replace them.
 | `gh` + a GitHub remote | default draft-PR delivery | set `review.delivery: local_diff` — fully local |
 | [agency-agents](https://github.com/msitarzewski/agency-agents) personas (MIT) | specialist dev/QA agents | auto-installed on demand from a pinned ref (`personas.auto_install`); otherwise runs on the built-in fallback agent |
 | Playwright (MCP) | screenshots for live/visual QA and bug repro | `/autodev:qa` / `/autodev:repro` offer to install it (with your consent); visual checks flag instead of block |
-| [BrainGrid CLI](https://braingrid.ai) | spec authoring | agents author the PRD/breakdown instead — nothing breaks |
+| [BrainGrid CLI](https://braingrid.ai) | optional spec-authoring adapter (`planning.engine: braingrid`) | the default: the PM personas author the PRD/breakdown |
 | Linear or Shortcut | `tracker.kind: linear` / `shortcut` | the zero-setup local board (default) |
 
 ## Toggles (preferred-optional, degrade gracefully)
@@ -112,7 +160,8 @@ Both feed the human gates, never replace them.
 |---|---|---|
 | `tracker.kind` | `local` (git-native board — zero setup, no tokens, `tracker.mjs board` view) · `linear` (the board is Linear, live) · `shortcut` (the board is Shortcut, live; cli intake) | `local` for new setups (init's default) |
 | `tracker.mirror.linear` | local mode: also mirror to Linear async (queued, off the critical path) | `false` |
-| `braingrid.enabled` | BrainGrid spec authoring **or** agent (PM + PjM) fallback | `true` (auto-falls-back if absent) |
+| `planning.engine` | `agency` (the PM + PjM personas author the PRD + breakdown) **or** `braingrid` (optional adapter; auto-falls-back to agency if unavailable) | `agency` |
+| `executor.default` | which model runtime runs the engine's jobs: `claude` (Claude Code CLI) or `codex` (Codex CLI, `codex login`) — same Job contract, switch with `autodev executor <name>` | `claude` |
 | `session_mode` | `concierge` (Marj greets, plain English drives) · `signal` (one-line pointer, dormant until invoked) · `silent` | `concierge` |
 | `intake.mode` | `cli` (in-session) **or** `linear` (tickets + comments, no terminal) | `cli` |
 | `intake.bugs` | `triage` (flag for a human) **or** `pipeline` (repro-test-first fixing) | `triage` |
@@ -127,6 +176,13 @@ Both feed the human gates, never replace them.
 | `execution.logging` | `quiet` (one line per action) · `normal` (checkpoint comments) · `verbose` (+ diffs) | `normal` |
 | `execution.incremental_breakdown` | whole feature at Gate 1 **or** per-milestone on demand | `false` |
 | `reporting.cadence` | operator digest: `off` · `hourly` · `<N>m` → log / slack / linear | `off` |
+
+## Tests
+
+```bash
+npm test            # = bash tests/run.sh — hermetic, no Claude, no network, ~450 checks
+bash tests/run.sh guards tracker   # a subset, by suite name
+```
 
 ## Docs
 

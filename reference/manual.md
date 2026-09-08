@@ -45,7 +45,8 @@ the operator just said — it is not a list of things that happen on their own.
 
 ## Concierge — how to respond to the operator
 
-**Input stack:** BrainGrid (spec) + Linear (tracking + state) by default.
+**Input stack:** the Agency personas author specs (`planning.engine: agency`, default;
+BrainGrid is an optional adapter) and the board tracks state (`tracker.kind`).
 **Interface depends on `intake.mode`:** in `cli` the operator drives intake here,
 in a session (below); in `linear` the operator drives everything from Linear —
 they create a ticket, the engine interviews + drafts the PRD in **comments**, and
@@ -148,7 +149,7 @@ every mode, so the skills below work unchanged:
   helper: `node ${CLAUDE_PLUGIN_ROOT}/scripts/tracker.mjs move <issue> <stage_key>`. Stage keys come
   from `tracker.statuses` and are identical in both modes.
 
-### Hierarchy mode — `tracker.hierarchy` (toggle, like braingrid)
+### Hierarchy mode — `tracker.hierarchy` (toggle)
 How a **feature** is represented. The default needs zero extra setup.
 - **`issue` (default):** the feature rides a **feature ISSUE** through the gate
   columns (New Request → Clarifying (H) → PRD Review (H) → … → Done); a **Project
@@ -210,11 +211,12 @@ always preempts; the drain never re-ranks the team's priority order.
 ## Non-negotiable principles (apply at every stage)
 
 1. **The board is the only state machine** (wherever `tracker.kind` puts it — local
-   files or Linear). Every transition is a **status move via `tracker.mjs`**. BrainGrid
-   holds *spec content* (Requirement = PRD + tasks) — and at
-   breakdown (`reference/breakdown.md`) copies that content in full into the board issue, so each
-   issue is **self-contained** (the dev agent never reads BrainGrid). BrainGrid is
-   never read downstream; its status is at most a one-way mirror of Linear.
+   files or Linear). Every transition is a **status move via `tracker.mjs`**. The
+   planning engine (`planning.engine` — Agency personas by default, BrainGrid as an
+   optional adapter) produces *spec content* (PRD + tasks), and breakdown
+   (`reference/breakdown.md`) copies that content in full into the board issue, so each
+   issue is **self-contained** (the dev agent never reads a planning tool). A planning
+   tool is never read downstream; its status is at most a one-way mirror of the board.
 2. **Two human gates.** Gate 1 = PRD approval. Gate 2 = story review/merge. A
    gate passes only by a human decision.
 3. **Only humans merge to `repo.default_branch`** (and per the **Delivery mode**
@@ -306,7 +308,8 @@ always preempts; the drain never re-ranks the team's priority order.
   default branch, not a PR). No-op under `local_diff`.
 - Merge: story → feature = **`merge_policy.story_to_feature`**; feature → `repo.default_branch` =
   **`merge_policy.feature_to_main`** (human-merged).
-- BrainGrid project: **`braingrid.project_short_id`**. Linear workspace: **`tracker.team`**.
+- Planning engine: **`planning.engine`** (`agency` | `braingrid`; BrainGrid project id in
+  `braingrid.project_short_id`). Linear workspace: **`tracker.team`**.
 - **Linear ops — always use the helper, never hand-rolled curl:**
   `node ${CLAUDE_PLUGIN_ROOT}/scripts/tracker.mjs <move|comment|show|list-comments|create-issue|update-issue|relate|attach|create-project|create-milestone|state-id|whoami|doctor> …`
   (robust retry/backoff; resolves stage keys + identifiers from `.autodev/deployment.json`).

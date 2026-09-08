@@ -30,10 +30,11 @@ Claude mobile app.
   workflow with the standard states + an API token; `ops/shortcut-setup.md` is the
   walkthrough. Intake stays in-session (`cli`) — comment-driven intake is
   Linear-only.
-- **BrainGrid** (`braingrid.enabled`, default on) — a spec-authoring tool the engine
-  prefers for PRDs. **Not installed? Nothing breaks** — the engine detects that and
-  falls back to its own PM personas automatically. Wiring it up is a 5-step CLI
-  install (below).
+- **BrainGrid** (`planning.engine: braingrid`, optional; the default is `agency`) —
+  an alternative spec-authoring tool. By default the engine's own PM personas author
+  the PRD + breakdown and nothing needs installing. Wiring BrainGrid up is a 5-step
+  CLI install (below); if it's unavailable at run time the engine falls back to
+  `agency` automatically.
 - **Branch protection** on your default branch — enforces "only humans merge"
   mechanically. Two minutes on GitHub: repo **Settings → Branches → Add branch
   protection rule** on `main`, check *"Require a pull request before merging"*.
@@ -89,10 +90,10 @@ idempotent, config preserved, and the engine version is re-stamped into
 
 ## BrainGrid CLI + Claude Code (optional spec tool)
 
-BrainGrid is the **preferred** spec tool (`braingrid.enabled: true`) — it authors the
-PRD (`/specify`) and breakdown inside Claude Code. It's **optional**: without it, the
-engine falls back to its product-manager + project-manager-senior personas
-automatically. To wire it up (needs Node 18+):
+BrainGrid is an **optional** spec tool (`planning.engine: braingrid`) — it authors the
+PRD (`/specify`) and breakdown inside Claude Code. The default (`planning.engine:
+agency`) uses the engine's product-manager + project-manager-senior personas and
+needs nothing installed. To wire BrainGrid up (needs Node 18+):
 
 ```bash
 # in your terminal:
@@ -103,5 +104,5 @@ cd /path/to/target-repo && braingrid init   # 4. create/link a BrainGrid project
 braingrid status                       # 5. verify: auth + linked project
 ```
 
-Then set `braingrid.enabled: true` and `braingrid.project_short_id` in
+Then set `planning.engine: braingrid` and `braingrid.project_short_id` in
 `.autodev/deployment.json`.

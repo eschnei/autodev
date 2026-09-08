@@ -90,8 +90,10 @@ Set up autoDev for **this repo**. Safe to re-run any time to reconfigure.
      `${CLAUDE_PLUGIN_ROOT}/ops/linear-setup.md` for creating the board columns +
      labels and getting a Linear API token on disk at
      `~/.config/autodev/<client_name>.linear.token`.
-   - If `braingrid.enabled` (default true): run `braingrid init` in this repo,
-     then set `braingrid.project_short_id` in `.autodev/deployment.json`.
+   - Planning is `planning.engine: agency` by default (the PM personas author the
+     PRD + breakdown — nothing to install). Only if the operator wants BrainGrid:
+     set `planning.engine: braingrid`, run `braingrid init` in this repo, then set
+     `braingrid.project_short_id` in `.autodev/deployment.json`.
    - Bot git identity + branch protection (needs repo admin): protect the default
      branch so only humans merge; the bot pushes feature/story branches only.
    - 24/7 timer (optional — skip this unless the operator asks for it): see

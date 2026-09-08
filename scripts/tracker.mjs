@@ -24,13 +24,26 @@ import { readFileSync, writeFileSync, renameSync, readdirSync, existsSync, mkdir
 import { join, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { loadConfig } from './lib/config.mjs';
+import { randomBytes } from 'node:crypto';
+
+// ULID (Crockford base32, time-sortable) — the canonical identity behind the AD-n key
+// (decision D3). Inlined: this facade stays self-contained for the ~/.autodev/bin copy.
+function ulid(time = Date.now()) {
+  const A = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; let out = '', t = time;
+  for (let i = 0; i < 10; i++) { out = A[t % 32] + out; t = Math.floor(t / 32); }
+  const rnd = randomBytes(10); let acc = 0, bits = 0, r = '';
+  for (const b of rnd) { acc = (acc << 8) | b; bits += 8; while (bits >= 5) { bits -= 5; r += A[(acc >>> bits) & 31]; } }
+  return out + r;
+}
 
 function die(msg) { console.error(`tracker.mjs: ${msg}`); process.exit(1); }
 
 const { cfg, configPath: CONFIG_PATH } = loadConfig();
 if (!cfg) die('no .autodev/deployment.json found (set $AUTODEV_CONFIG or run inside the repo)');
 const ROOT = dirname(dirname(CONFIG_PATH));
-const BOARD = join(ROOT, '.autodev', 'board');
+// v3 sidecar projects keep the board outside the repo (decision D2) — the core
+// Tracker passes its location; a v2 deployment's board sits next to its config.
+const BOARD = process.env.AUTODEV_BOARD_DIR || join(ROOT, '.autodev', 'board');
 const KIND = cfg.tracker?.kind || 'linear';
 const MIRROR = KIND === 'local' && cfg.tracker?.mirror?.linear === true;
 
@@ -42,6 +55,19 @@ function delegateTo(driver, argv) {
 
 // ---- local store -------------------------------------------------------------
 const now = () => new Date().toISOString();
+// v3 policy (sidecar boards only; v2 repo-local boards are unchanged): LEAVING a
+// human gate is a human decision that autoDev core records (autodev approve /
+// reject → Control API). Core identifies itself with AUTODEV_ACTOR; the bounded
+// job core dispatches after a decision carries AUTODEV_GATE_TICKET=<issue>:<event>
+// for exactly that issue. A model in a heartbeat or a plugin session has neither.
+const GATE_STAGES = ['prd_review', 'ready_for_human_review', 'ready_for_human_acceptance'];
+function gateGuard(issue, from, to) {
+  if (!process.env.AUTODEV_BOARD_DIR || from === to || !GATE_STAGES.includes(from)) return;
+  if (process.env.AUTODEV_ACTOR) return;
+  const ticket = (process.env.AUTODEV_GATE_TICKET || '').split(':')[0];
+  if (ticket && ticket.toLowerCase() === issue.id.toLowerCase()) return;
+  die(`${issue.id} is at a human gate (${from}); leaving it is a human decision that autoDev records — the operator runs \`autodev approve ${issue.id}\` or \`autodev reject ${issue.id} <reason>\`. Nothing was changed.`);
+}
 function ensureBoard() { mkdirSync(BOARD, { recursive: true }); }
 function issuePath(id) { return join(BOARD, `${id}.json`); }
 function writeAtomic(path, obj) {
@@ -93,9 +119,11 @@ const local = {
   'create-issue'(a) {
     const f = flags(a);
     if (!f.title) die('create-issue needs --title');
+    const labels = f.labels ? f.labels.split(',') : [];
+    const isFeature = labels.includes(cfg.tracker?.labels?.route_feature || 'route:feature');
     const issue = {
-      id: nextId(), title: f.title, description: f.desc || '',
-      stage: f.stage || 'new_request', labels: f.labels ? f.labels.split(',') : [],
+      id: nextId(), uid: `${isFeature ? 'req' : 'task'}_${ulid()}`, title: f.title, description: f.desc || '',
+      stage: f.stage || 'new_request', labels,
       project: f.project || null, milestone: f.milestone || null,
       relations: [], attachments: [], comments: [],
       history: [{ at: now(), to: f.stage || 'new_request', note: 'created' }],
@@ -109,6 +137,7 @@ const local = {
     const issue = loadIssue(a[0]);
     const from = issue.stage; const to = a[1];
     stageName(to); // validate
+    gateGuard(issue, from, to);
     const note = flags(a.slice(2)).note || null;
     issue.stage = to;
     issue.history.push({ at: now(), from, to, note });
@@ -129,7 +158,7 @@ const local = {
     const f = flags(a.slice(1));
     if (f.title) issue.title = f.title;
     if (f.desc) issue.description = f.desc;
-    if (f.stage) { stageName(f.stage); issue.history.push({ at: now(), from: issue.stage, to: f.stage, note: 'update-issue' }); issue.stage = f.stage; }
+    if (f.stage) { stageName(f.stage); gateGuard(issue, issue.stage, f.stage); issue.history.push({ at: now(), from: issue.stage, to: f.stage, note: 'update-issue' }); issue.stage = f.stage; }
     if (f.labels) issue.labels = f.labels.split(',');
     saveIssue(issue);
     queueMirror({ op: 'update', id: issue.id, ...f });
@@ -181,7 +210,7 @@ const local = {
       console.log(`\n■ ${stageName(key)} (${rows.length})`);
       for (const i of rows) console.log(`  ${i.id}  ${i.title}`);
     }
-    const htmlPath = flags(a).html || join(ROOT, '.autodev', 'board.html');
+    const htmlPath = flags(a).html || (process.env.AUTODEV_BOARD_DIR ? join(dirname(BOARD), 'board.html') : join(ROOT, '.autodev', 'board.html'));
     const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const cols = order.map((key) => {
       const rows = all.filter((i) => i.stage === key);

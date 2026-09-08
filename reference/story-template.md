@@ -1,6 +1,6 @@
 # Story template (used by the breakdown stage — reference/breakdown.md)
 
-Each BrainGrid task becomes one Linear **Issue** with this body. Every field is
+Each breakdown task becomes one board **Issue** with this body. Every field is
 required; if a field can't be filled with something objective, the story is too
 thin — **stop and ask the operator** (ask, don't invent) rather than emit a hollow
 story.

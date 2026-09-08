@@ -87,6 +87,24 @@ if [[ ! -f "$LOCAL" ]]; then
   fi
 fi
 
+# --- v3 default tracker is local. A config that predates tracker.kind was a Linear
+# deployment (there was nothing else) — pin it explicitly so the defaults merge below
+# can't silently flip it to local.
+if [[ "$(jq -r '.tracker.kind // ""' "$CFG")" == "" && "$(jq -r '.tracker | has("team_id") or has("team") or has("statuses")' "$CFG")" == "true" ]]; then
+  jq '.tracker.kind = "linear"' "$CFG" > "$CFG.tmp" && mv "$CFG.tmp" "$CFG"
+  echo "✓ tracker.kind = linear (pinned — this pre-local config was a Linear deployment; v3 defaults new setups to local)"
+fi
+
+# --- v3 planning engine: derive planning.engine from the legacy braingrid.enabled selector
+# BEFORE the defaults merge below would stamp the new default (agency) onto a deployment
+# that has been running BrainGrid all along. An explicit planning.engine is never touched.
+if [[ "$(jq -r '.planning.engine // ""' "$CFG")" == "" ]]; then
+  if [[ "$(jq -r '.braingrid.enabled // false' "$CFG")" == "true" ]]; then
+    jq '.planning = ((.planning // {}) + {engine: "braingrid"})' "$CFG" > "$CFG.tmp" && mv "$CFG.tmp" "$CFG"
+    echo "✓ planning.engine = braingrid (derived from your braingrid.enabled=true — BrainGrid stays your PRD/breakdown engine; set planning.engine=agency to switch)"
+  fi
+fi
+
 BEFORE=$(jq -c '[paths(scalars)]' "$CFG")
 # defaults (notes stripped, identity/example-only fields dropped) deep-merged UNDER
 # the existing config — jq's * is right-biased, so operator values always win

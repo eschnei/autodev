@@ -4,8 +4,9 @@
 > by conversation. Routes the request, interviews for anything missing, and creates
 > the feature-request issue.
 
-New work enters here and nowhere else. The default input stack is **BrainGrid**
-(spec authoring) + **Linear** (tracking + state).
+New work enters here and nowhere else. Specs are authored by the Agency personas
+(`planning.engine: agency`, default — BrainGrid is an optional adapter) and tracked
+on the board (`tracker.kind`).
 
 ## Mode (read `intake.mode` from `.autodev/deployment.json`)
 
@@ -120,15 +121,15 @@ The steps below are identical in both modes — only the *medium* differs
      ride project statuses; stories are created at `/autodev:loop`'s breakdown stage.
 
 5. **Hand off.** Tell the operator the brief is captured and offer to draft the
-   PRD next (running `/autodev:loop` turns this into a BrainGrid Requirement for
-   their Gate 1 approval, per `reference/prd.md`). Do not proceed past intake
+   PRD next (running `/autodev:loop` turns this into a PRD for their Gate 1
+   approval, per `reference/prd.md`). Do not proceed past intake
    without the operator.
 
 ## Guardrails
 
 - Stay conversational — this is a human-in-the-loop stage; never expect command
   names from the operator.
-- Do not create stories, branches, projects, milestones, or BrainGrid tasks here
+- Do not create stories, branches, projects, milestones, or planning tasks here
   — intake only produces the brief + the feature-request issue. The full
   hierarchy comes from `/autodev:loop`'s breakdown stage, after the PRD is
   approved at Gate 1.

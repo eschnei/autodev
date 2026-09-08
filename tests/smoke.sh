@@ -3,15 +3,10 @@
 # synthetic client repo, asserting the contracts that have bitten us in real
 # deployments. No Claude invocation (the commands themselves are prose, interpreted
 # by Claude at runtime — not something a shell script can drive). Run: tests/smoke.sh
-set -uo pipefail
-PLUGIN="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FAIL=0
-pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
-fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; FAIL=1; }
-check() { # <desc> <cmd...>
-  local d="$1"; shift
-  if "$@" >/dev/null 2>&1; then pass "$d"; else fail "$d"; fi
-}
+# Hermetic: tests/lib.sh redirects $HOME and stubs claude/gh/launchctl/osascript so
+# nothing on the developer's machine (an enabled autodev plugin, ~/.config/autodev)
+# can change a result. It also provides PLUGIN, pass/fail/check.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 # ---- synthetic client repo: team docs + foreign settings + a pre-existing git hook + MUI/codegen ----
 TGT=$(mktemp -d); trap 'rm -rf "$TGT"' EXIT
@@ -222,13 +217,13 @@ echo "headless allowlist hardening (AD-17 / external issue #9):"
 check "devloop-tick.sh parses" bash -n "$PLUGIN/scripts/devloop-tick.sh"
 check "doctor.sh parses" bash -n "$PLUGIN/scripts/doctor.sh"
 check "allowlist never grants gh pr merge (only humans merge)" bash -c \
-  "! grep -q 'gh pr merge' '$PLUGIN/scripts/devloop-tick.sh'"
+  "! grep -qE 'Bash\\(gh pr merge' '$PLUGIN/src/core/permissions.mjs'"
 check "allowlist never grants bare node (node -e = arbitrary exec)" bash -c \
-  "! grep -qF 'Bash(node *)' '$PLUGIN/scripts/devloop-tick.sh'"
+  "! grep -qF 'Bash(node *)' '$PLUGIN/src/core/permissions.mjs'"
 check "allowlist never grants bare jq" bash -c \
-  "! grep -qF 'Bash(jq' '$PLUGIN/scripts/devloop-tick.sh'"
+  "! grep -qF 'Bash(jq' '$PLUGIN/src/core/permissions.mjs'"
 check "node is scoped to the engine's tracker.mjs" bash -c \
-  "grep -qF 'Bash(node \${CLAUDE_PLUGIN_ROOT}/scripts/tracker.mjs' '$PLUGIN/scripts/devloop-tick.sh'"
+  "grep -qF 'Bash(node \${CLAUDE_PLUGIN_ROOT}/scripts/tracker.mjs' '$PLUGIN/src/core/permissions.mjs'"
 check "doctor has the branch-protection check" bash -c \
   "grep -qF 'branches/\$BRANCH/protection' '$PLUGIN/scripts/doctor.sh'"
 check "intake authorizes nobody by default (no more '*')" bash -c \
@@ -442,9 +437,10 @@ check "notify.sh parses" bash -n "$PLUGIN/scripts/notify.sh"
 NOLIB=$(mktemp -d); NOLIBR=$(mktemp -d); mkdir -p "$NOLIBR/.autodev"
 jq '.client_name="NoLib" | .tracker.kind="local"' "$PLUGIN/reference/deployment.example.json" > "$NOLIBR/.autodev/deployment.json"
 cp "$PLUGIN/scripts/"{devloop-tick.sh,watchdog.sh,notify.sh} "$NOLIB/"
+# devloop-tick.sh is a thin wrapper since v3: alone, it fails on the missing CLI instead.
 for s in devloop-tick watchdog; do
-  check "$s.sh fails loudly when lib/config.sh isn't a sibling" bash -c \
-    "out=\$(bash '$NOLIB/$s.sh' '$NOLIBR' 2>&1); rc=\$?; [[ \$rc -ne 0 ]] && printf '%s' \"\$out\" | grep -q 'missing lib/config.sh'"
+  check "$s.sh fails loudly when copied without its siblings" bash -c \
+    "out=\$(PATH='$STUBBIN:/usr/bin:/bin' bash '$NOLIB/$s.sh' '$NOLIBR' 2>&1); rc=\$?; [[ \$rc -ne 0 ]] && printf '%s' \"\$out\" | grep -qE 'missing lib/config.sh|autodev CLI was not found'"
 done
 check "notify.sh fails loudly when lib/config.sh isn't a sibling" bash -c \
   "out=\$(bash '$NOLIB/notify.sh' '$NOLIBR' stalled 60 2>&1); rc=\$?; [[ \$rc -ne 0 ]] && printf '%s' \"\$out\" | grep -q 'missing lib/config.sh'"

@@ -85,7 +85,7 @@ any in-flight story. None eligible anywhere → exit (Blocked cards are visible)
   universal coding standards (`${CLAUDE_PLUGIN_ROOT}/reference/manual.md` ▸ Coding
   standards)**; the subagent
   doesn't otherwise load them and will over-comment / hand-roll types. It also reads:
-  the PRD, the BrainGrid task/plan, the **team's** `AGENTS.md`/`CLAUDE.md` (conventions
+  the PRD, the task's plan, the **team's** `AGENTS.md`/`CLAUDE.md` (conventions
   authority), **`.autodev/conventions.md`** (auto-detected conventions + measured
   comment density), and its story.
 - **Survey conventions BEFORE writing** — the #1 autoDev defect is reinventing what

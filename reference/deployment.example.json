@@ -8,7 +8,6 @@
     "name": "autodev-bot",
     "email": "autodev-bot@example.com"
   },
-
   "repo": {
     "url": "https://github.com/AcmeCo/their-repo",
     "default_branch": "main",
@@ -16,14 +15,12 @@
     "story_branch_prefix": "autodev"
   },
   "_repo_local_path_note": "repo.local_path moved to the never-committed .autodev/deployment.local.json (see reference/deployment.local.example.json) — it's a per-machine absolute path, not project config. /autodev:init writes it there.",
-
   "merge_policy": {
     "story_to_feature": "squash",
     "feature_to_main": "merge_commit"
   },
-
   "tracker": {
-    "kind": "linear",
+    "kind": "local",
     "_kind_note": "WHERE the board (the only state machine) lives. All ops go through the facade ${CLAUDE_PLUGIN_ROOT}/scripts/tracker.mjs in every mode. 'local' = git-native board (.autodev/board/*.json): zero setup, no token, no rate limits, offline; view with 'tracker.mjs board' (text + board.html). 'linear' = the board IS Linear (live API; required for intake.mode=linear). 'shortcut' = the board IS Shortcut (REST v3, live; cli intake only — see the shortcut block below). New deployments should start 'local' and add a hosted tracker later if wanted.",
     "shortcut": {
       "_note": "ONLY used when kind=='shortcut'. Same stage KEYS as 'statuses' below; each id is a Shortcut WORKFLOW STATE id (integer) from GET /api/v3/workflows — set up per ops/shortcut-setup.md. Comment-driven intake (intake.mode=linear) is Linear-only; Shortcut deployments use intake.mode=cli.",
@@ -34,17 +31,44 @@
       "group_id": "",
       "_group_id_note": "optional Shortcut Group (team) UUID stamped on created stories/epics; leave empty for workspaces without groups.",
       "statuses": {
-        "new_request":               { "id": "FILL_AT_SETUP" },
-        "clarifying":                { "id": "FILL_AT_SETUP", "human": true },
-        "prd_review":                { "id": "FILL_AT_SETUP", "human": true },
-        "breakdown":                 { "id": "FILL_AT_SETUP" },
-        "ready_for_ai_dev":          { "id": "FILL_AT_SETUP" },
-        "ai_development":            { "id": "FILL_AT_SETUP" },
-        "ai_qa":                     { "id": "FILL_AT_SETUP" },
-        "ready_for_human_review":    { "id": "FILL_AT_SETUP", "human": true },
-        "ready_for_human_acceptance":{ "id": "FILL_AT_SETUP", "human": true },
-        "blocked":                   { "id": "FILL_AT_SETUP", "human": true },
-        "done":                      { "id": "FILL_AT_SETUP" }
+        "new_request": {
+          "id": "FILL_AT_SETUP"
+        },
+        "clarifying": {
+          "id": "FILL_AT_SETUP",
+          "human": true
+        },
+        "prd_review": {
+          "id": "FILL_AT_SETUP",
+          "human": true
+        },
+        "breakdown": {
+          "id": "FILL_AT_SETUP"
+        },
+        "ready_for_ai_dev": {
+          "id": "FILL_AT_SETUP"
+        },
+        "ai_development": {
+          "id": "FILL_AT_SETUP"
+        },
+        "ai_qa": {
+          "id": "FILL_AT_SETUP"
+        },
+        "ready_for_human_review": {
+          "id": "FILL_AT_SETUP",
+          "human": true
+        },
+        "ready_for_human_acceptance": {
+          "id": "FILL_AT_SETUP",
+          "human": true
+        },
+        "blocked": {
+          "id": "FILL_AT_SETUP",
+          "human": true
+        },
+        "done": {
+          "id": "FILL_AT_SETUP"
+        }
       }
     },
     "mirror": {
@@ -69,46 +93,128 @@
     "state_model": "status",
     "_state_model_note": "STANDARD: every autoDev deployment uses the SAME canonical Linear status columns below — that's what makes the engine portable. Create them with ops/linear-setup.md and paste each column's UUID into 'id'. The engine moves an issue's STATUS at every step, so the board IS the live pipeline. (H) = a human gate/action. Names ending in (H) must keep the (H) — the engine reads it as 'human'.",
     "hierarchy": "issue",
-    "_hierarchy_note": "TOGGLE (like braingrid — preferred-optional, degrades gracefully). 'issue' (DEFAULT, zero extra setup, no org-level changes): the feature rides a feature ISSUE through the gate columns below (New Request → … → Done); a Project + Milestones group the stories. 'project' (OPT-IN): the feature IS a Linear Project and its gates are ORG-LEVEL project statuses (see project_statuses) — cleaner Projects view, but the custom statuses appear workspace-wide, so only use it in a workspace dedicated to this. project_statuses is created by hand per ops/linear-setup.md (no automated step) when hierarchy=='project'.",
+    "_hierarchy_note": "TOGGLE (preferred-optional, degrades gracefully). 'issue' (DEFAULT, zero extra setup, no org-level changes): the feature rides a feature ISSUE through the gate columns below (New Request → … → Done); a Project + Milestones group the stories. 'project' (OPT-IN): the feature IS a Linear Project and its gates are ORG-LEVEL project statuses (see project_statuses) — cleaner Projects view, but the custom statuses appear workspace-wide, so only use it in a workspace dedicated to this. project_statuses is created by hand per ops/linear-setup.md (no automated step) when hierarchy=='project'.",
     "project_statuses": {
       "_note": "ONLY used when hierarchy=='project'. Org-level Linear project statuses for the FEATURE lifecycle/gates. Create them by hand per ops/linear-setup.md (GraphQL calls, or `scripts/linear.mjs create-project-status`) and paste the ids. The 'statuses' below then serve only the TASK pipeline.",
-      "new_request":  { "name": "New Request",     "id": "FILL_IF_PROJECT_MODE", "type": "backlog" },
-      "clarifying":   { "name": "Clarifying (H)",  "id": "FILL_IF_PROJECT_MODE", "type": "planned",   "human": true },
-      "prd_review":   { "name": "PRD Review (H)",   "id": "FILL_IF_PROJECT_MODE", "type": "planned",   "human": true },
-      "in_development":{ "name": "In Development",  "id": "FILL_IF_PROJECT_MODE", "type": "started" },
-      "acceptance":   { "name": "Acceptance (H)",  "id": "FILL_IF_PROJECT_MODE", "type": "started",   "human": true },
-      "done":         { "name": "Shipped",         "id": "FILL_IF_PROJECT_MODE", "type": "completed" }
+      "new_request": {
+        "name": "New Request",
+        "id": "FILL_IF_PROJECT_MODE",
+        "type": "backlog"
+      },
+      "clarifying": {
+        "name": "Clarifying (H)",
+        "id": "FILL_IF_PROJECT_MODE",
+        "type": "planned",
+        "human": true
+      },
+      "prd_review": {
+        "name": "PRD Review (H)",
+        "id": "FILL_IF_PROJECT_MODE",
+        "type": "planned",
+        "human": true
+      },
+      "in_development": {
+        "name": "In Development",
+        "id": "FILL_IF_PROJECT_MODE",
+        "type": "started"
+      },
+      "acceptance": {
+        "name": "Acceptance (H)",
+        "id": "FILL_IF_PROJECT_MODE",
+        "type": "started",
+        "human": true
+      },
+      "done": {
+        "name": "Shipped",
+        "id": "FILL_IF_PROJECT_MODE",
+        "type": "completed"
+      }
     },
     "statuses": {
-      "new_request":               { "name": "New Request",      "id": "FILL_AT_SETUP", "_role": "drop zone / inbox (linear mode)" },
-      "clarifying":                { "name": "Clarifying (H)",   "id": "FILL_AT_SETUP", "human": true, "_role": "engine asked a question; awaiting operator reply" },
-      "prd_review":                { "name": "PRD Review (H)",   "id": "FILL_AT_SETUP", "human": true, "_role": "Gate 1 — PRD drafted, awaiting approve" },
-      "breakdown":                 { "name": "Breakdown",        "id": "FILL_AT_SETUP", "_role": "decomposing the approved PRD into stories" },
-      "ready_for_ai_dev":          { "name": "Ready for AI Dev", "id": "FILL_AT_SETUP", "_role": "stories queued + ai-eligible" },
-      "ai_development":            { "name": "AI Development",   "id": "FILL_AT_SETUP", "_role": "engine coding" },
-      "ai_qa":                     { "name": "AI QA",            "id": "FILL_AT_SETUP", "_role": "three-angle QA running" },
-      "ready_for_human_review":    { "name": "Human Review (H)", "id": "FILL_AT_SETUP", "human": true, "_role": "Gate 2 — draft PR + manual script, awaiting approve" },
-      "ready_for_human_acceptance":{ "name": "Human Review (H)", "id": "FILL_AT_SETUP", "human": true, "_role": "per_feature: whole-feature acceptance (same column)" },
-      "blocked":                   { "name": "Blocked (H)",      "id": "FILL_AT_SETUP", "human": true, "_role": "stuck mid-pipeline; needs human input" },
-      "done":                      { "name": "Done",             "id": "FILL_AT_SETUP", "_role": "merged / shipped" }
+      "new_request": {
+        "name": "New Request",
+        "id": "FILL_AT_SETUP",
+        "_role": "drop zone / inbox (linear mode)"
+      },
+      "clarifying": {
+        "name": "Clarifying (H)",
+        "id": "FILL_AT_SETUP",
+        "human": true,
+        "_role": "engine asked a question; awaiting operator reply"
+      },
+      "prd_review": {
+        "name": "PRD Review (H)",
+        "id": "FILL_AT_SETUP",
+        "human": true,
+        "_role": "Gate 1 — PRD drafted, awaiting approve"
+      },
+      "breakdown": {
+        "name": "Breakdown",
+        "id": "FILL_AT_SETUP",
+        "_role": "decomposing the approved PRD into stories"
+      },
+      "ready_for_ai_dev": {
+        "name": "Ready for AI Dev",
+        "id": "FILL_AT_SETUP",
+        "_role": "stories queued + ai-eligible"
+      },
+      "ai_development": {
+        "name": "AI Development",
+        "id": "FILL_AT_SETUP",
+        "_role": "engine coding"
+      },
+      "ai_qa": {
+        "name": "AI QA",
+        "id": "FILL_AT_SETUP",
+        "_role": "three-angle QA running"
+      },
+      "ready_for_human_review": {
+        "name": "Human Review (H)",
+        "id": "FILL_AT_SETUP",
+        "human": true,
+        "_role": "Gate 2 — draft PR + manual script, awaiting approve"
+      },
+      "ready_for_human_acceptance": {
+        "name": "Human Review (H)",
+        "id": "FILL_AT_SETUP",
+        "human": true,
+        "_role": "per_feature: whole-feature acceptance (same column)"
+      },
+      "blocked": {
+        "name": "Blocked (H)",
+        "id": "FILL_AT_SETUP",
+        "human": true,
+        "_role": "stuck mid-pipeline; needs human input"
+      },
+      "done": {
+        "name": "Done",
+        "id": "FILL_AT_SETUP",
+        "_role": "merged / shipped"
+      }
     },
     "labels": {
       "ai_eligible": "ai-eligible",
       "route_feature": "route:feature",
       "route_task": "route:task",
       "route_bug": "route:bug",
-      "risk_classes": ["risk:trivial", "risk:standard", "risk:sensitive"]
+      "risk_classes": [
+        "risk:trivial",
+        "risk:standard",
+        "risk:sensitive"
+      ]
     }
   },
-
+  "planning": {
+    "engine": "agency",
+    "_engine_note": "Who authors the PRD + breakdown. agency (DEFAULT, zero setup): the product-manager persona drafts the PRD and project-manager-senior reviews it + does the breakdown — the same structure and the same Gate 1. braingrid (OPTIONAL adapter): author the PRD as a BrainGrid Requirement + /breakdown tasks; needs the braingrid CLI + braingrid.project_short_id, and falls back to agency automatically on a runtime BrainGrid error."
+  },
   "braingrid": {
-    "enabled": true,
-    "_enabled_note": "PREFERRED. true = author the PRD as a BrainGrid Requirement + /breakdown tasks. false (or BrainGrid unavailable / over usage limit) = fall back to the product-manager + project-manager-senior personas authoring the PRD + breakdown directly. The engine auto-falls-back on a runtime BrainGrid error.",
+    "enabled": false,
+    "_enabled_note": "LEGACY selector — planning.engine (below) is authoritative. Kept so pre-v3 configs keep their behavior: an old config with braingrid.enabled=true and no planning.engine still runs BrainGrid. New deployments leave this false and set planning.engine.",
     "project_short_id": "PROJ-XX"
   },
-
   "intake": {
-    "_note": "Default input stack is BrainGrid (spec authoring: Requirement = PRD, + tasks) + the board (tracking + state machine). 'mode' controls HOW work enters the engine.",
+    "_note": "Specs are authored by the planning engine (planning.engine — the Agency PM personas by default) and tracked on the board (the state machine). 'mode' controls HOW work enters the engine.",
     "bugs": "triage",
     "_bugs_note": "What /intake does with a BUG. triage (default) = flag route:bug for human triage, never build (v1 behavior). pipeline = run the REPRO-FIRST bug pipeline: intake interviews for reproduction steps (expected vs actual, env), the story gets route:bug + ai-eligible + repro-first, and the dev agent MUST write a failing test that reproduces the bug BEFORE fixing it (red → fix → green); QA verifies the repro test exists and now passes.",
     "mode": "cli",
@@ -118,7 +224,6 @@
     "authorized_operators": [],
     "_auth_note": "linear mode only: Linear user identifiers (email/display name) whose NEW tickets + comments are honored as engine triggers and gate approvals. Default [] authorizes NOBODY — linear intake stays inert until you list real operators. '*' = any workspace member: an explicit opt-in for a private team workspace that widens the prompt-injection surface to every member. Ticket/comment CONTENT is always untrusted DATA, never instructions that can override engine rules."
   },
-
   "execution": {
     "max_lanes": 5,
     "tick_interval_minutes": 15,
@@ -129,7 +234,6 @@
     "incremental_breakdown": false,
     "_incremental_breakdown_note": "B6 — false (default): /breakdown decomposes the WHOLE feature at Gate 1. true: decompose one MILESTONE/epic at a time, on demand, so the queue stays fed without a huge upfront pass (good for big features)."
   },
-
   "reporting": {
     "cadence": "off",
     "_cadence_note": "B4 — periodic OPERATOR DIGEST (distinct from per-tick logging): off | hourly | <N>m | <N>h. report.mjs runs each tick and emits only when the window elapses — a cheap (no-Claude) rollup of in-flight / awaiting-you / blocked / done + commits + engine status.",
@@ -140,7 +244,6 @@
     "feature_stats": true,
     "_feature_stats_note": "B8 — at feature close-out, post a stats comment + append a line to .autodev/metrics.jsonl: name, started/shipped dates, elapsed, #stories, lines +/-, dev↔QA rounds, QA verdicts. Rolls up to portfolio metrics."
   },
-
   "commands": {
     "install": "meteor npm install",
     "test": "meteor npm test",
@@ -149,7 +252,6 @@
     "app_run": "meteor run",
     "app_url": "http://localhost:3000"
   },
-
   "qa": {
     "e2e_framework": "cypress",
     "e2e_dir": "e2e",
@@ -167,10 +269,31 @@
       "enabled": true,
       "mode": "advisory",
       "_mode_note": "advisory (default): a clear functional-visual breakage (broken layout, overflow/clipping, unreadable contrast) routes the story back to dev as a defect; subjective polish only flags for the human (⚠ visual). gating: also block on the breakages (stricter — for design-critical products). Subjective aesthetics NEVER auto-block in either mode.",
-      "ui_globs": ["ui/", "src/components", "src/pages", "*.tsx", "*.jsx", "*.vue", "*.svelte", "*.css", "*.scss"],
+      "ui_globs": [
+        "ui/",
+        "src/components",
+        "src/pages",
+        "*.tsx",
+        "*.jsx",
+        "*.vue",
+        "*.svelte",
+        "*.css",
+        "*.scss"
+      ],
       "_ui_globs_note": "A story whose touched files match any of these (or that has wireframes attached, or a design/ui label) is UI-heavy → the 4th visual angle runs. Non-UI stories skip it (no slowdown).",
-      "breakpoints": ["375", "768", "1280"],
-      "states": ["default", "hover", "focus", "empty", "loading", "error"],
+      "breakpoints": [
+        "375",
+        "768",
+        "1280"
+      ],
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "empty",
+        "loading",
+        "error"
+      ],
       "_states_note": "evidence-collector captures the built screen at each breakpoint (px width) and exercises these interaction/data states where applicable; screenshots attach to the story as evidence."
     },
     "docker_up": "docker compose up -d",
@@ -187,11 +310,19 @@
         "EMAIL_API_KEY": ""
       },
       "_forbid_note": "ILLUSTRATIVE — list YOUR prod hostnames so doctor can flag them in .env. Common SaaS shown as examples.",
-      "forbid_endpoints": ["*.twilio.com", "api.mailgun.net", "api.sendgrid.com", "api.stripe.com"]
+      "forbid_endpoints": [
+        "*.twilio.com",
+        "api.mailgun.net",
+        "api.sendgrid.com",
+        "api.stripe.com"
+      ]
     },
     "acceptance": {
       "_note": "B1 — whole-feature acceptance QA (merge-verify §2), run on the assembled branch before the human gate. Catches cross-suite flakiness the per-story gates miss + verifies the system as a whole.",
-      "integrated_suites": ["meteor npm test", "meteor npm run test:e2e"],
+      "integrated_suites": [
+        "meteor npm test",
+        "meteor npm run test:e2e"
+      ],
       "live_system": true
     },
     "deep_dive": {
@@ -205,18 +336,19 @@
       "_wall_clock_minutes_note": "Backstop on the same hunt — whichever limit hits first (attempts or wall clock) ends it."
     }
   },
-
   "preview": {
     "enabled": true,
     "command": "",
     "url": "",
     "_note": "Close the 'human accepts a DIFF instead of a running product' gap. At the acceptance gate (merge-verify §2), the engine starts the ASSEMBLED feature branch app (command, default commands.app_run; hermetic env applied) and posts the URL (default commands.app_url) on the acceptance ticket — PLUS the exact one-liner to relaunch it (ticks are stateless; the posted command always works even if the engine's instance has exited). The human accepts a running product, not a diff."
   },
-
   "backlog": {
     "enabled": false,
     "_enabled_note": "BACKLOG DRAIN (reference/backlog.md) — work the team's existing ticket pile during IDLE time only (real feature work always preempts). OFF by default; even when on, the engine never starts without an operator approval at the entry gate. Each ticket gets a context-first mini-pipeline instead of a PRD: explore the code, post a context brief with DERIVED testable criteria on the ticket, build (bugs are repro-test-first), full QA, own branch + PR to the default branch. Gate 2 (human reviews + merges every PR) is never waived. Unfit tickets (too vague / stale / too large) get a comment + label and are SKIPPED, never silently built.",
-    "ask_when": ["feature_complete", "idle"],
+    "ask_when": [
+      "feature_complete",
+      "idle"
+    ],
     "_ask_when_note": "When to ASK for entry approval: feature_complete = a feature just shipped and the queue is empty; idle = backlog.idle_ticks consecutive heartbeat passes did nothing. 'Not now' suppresses re-asking until the next trigger.",
     "idle_ticks": 4,
     "batch": 3,
@@ -228,7 +360,6 @@
       "_note": "Where the pile lives (tracker-agnostic via tracker.mjs; for kind=linear a status/label query — tickets NOT in the engine's pipeline columns). type: any | bug | feature. Selection = highest tracker priority, then list order (the team's ordering is trusted, never re-ranked)."
     }
   },
-
   "review": {
     "delivery": "draft_pr",
     "_delivery_note": "HOW work reaches a human (see reference/manual.md ▸ Delivery mode — authoritative). draft_pr (default) = the bot pushes feature/story branches + opens GitHub draft PRs; humans merge via GitHub. local_diff = LOCAL-ONLY: no git push, no PRs — branches/merges stay local and gates review a local diff posted on the ticket (enforced by the plugin's PreToolUse push-guard hook, hooks/guard-push.sh).",
@@ -239,7 +370,6 @@
     "quality_review": true,
     "_quality_review_note": "B2 — at feature close-out, a code-reviewer does a leanness pass over the assembled feature diff (dedup, dead code, copy-paste, stale comments); applies behavior-preserving simplifications only, re-runs gates, before the acceptance gate."
   },
-
   "backup": {
     "enabled": true,
     "_enabled_note": "WIP DURABILITY — distinct from review.delivery / PRs. true (default): once the feature branch is created AND after EVERY story merges into it, the engine pushes the feature branch to its remote so an interrupted run never loses committed work. This is a BACKUP, not a PR/review artifact — the feature PR is still opened only at close-out (§8) and humans still gate + merge. It only ADVANCES the remote feature ref (fast-forward; never force, never a default-branch push).",
@@ -247,7 +377,6 @@
     "_remote_note": "Which git remote to back up to (default: origin — the same remote draft_pr pushes to). If you change it, mirror the change in .claude/settings.json's allowed push pattern.",
     "_delivery_note": "ONLY active when review.delivery is 'draft_pr'. Under 'local_diff' (no-push / code stays off any remote by design) backup is a LOGGED NO-OP — it never overrides the no-push rule or the push-guard hook (hooks/guard-push.sh)."
   },
-
   "personas": {
     "_note": "Which agent personas the engine may use (subagent slugs in ~/.claude/agents/), and how it routes work to the best one. Roster + routing are per-client because stacks differ. Specialist QA agents are from the agency-agents library.",
     "auto_install": true,
@@ -284,21 +413,71 @@
       "breakdown": "project-manager-senior"
     },
     "dev_routing": [
-      { "match": "server/", "persona": "backend-architect", "why": "Elixir/Phoenix · GraphQL/Absinthe · Ecto" },
-      { "match": "ui/", "persona": "frontend-developer", "why": "React 18 · TypeScript · Apollo · MUI · Formik" },
-      { "match": "schema|migration|ecto|query|index", "persona": "database-optimizer", "why": "DB schema / query work" },
-      { "match": "design|theme|css|component-library", "persona": "architect-ux", "why": "design system / CSS architecture" },
-      { "match": "default", "persona": "general-purpose", "why": "fallback when no clear specialist" }
+      {
+        "match": "server/",
+        "persona": "backend-architect",
+        "why": "Elixir/Phoenix · GraphQL/Absinthe · Ecto"
+      },
+      {
+        "match": "ui/",
+        "persona": "frontend-developer",
+        "why": "React 18 · TypeScript · Apollo · MUI · Formik"
+      },
+      {
+        "match": "schema|migration|ecto|query|index",
+        "persona": "database-optimizer",
+        "why": "DB schema / query work"
+      },
+      {
+        "match": "design|theme|css|component-library",
+        "persona": "architect-ux",
+        "why": "design system / CSS architecture"
+      },
+      {
+        "match": "default",
+        "persona": "general-purpose",
+        "why": "fallback when no clear specialist"
+      }
     ],
     "qa_angles": {
       "_note": "Each story is verified by three ALWAYS-RUN fresh-context QA runs, plus a CONDITIONAL visual angle for UI-heavy stories. The live browser + visual checks are advisory evidence, never a hard gate.",
-      "conformance": ["code-reviewer", "test-results-analyzer", "evidence-collector"],
-      "adversarial": ["application-security-engineer", "api-tester"],
-      "regression": ["test-results-analyzer", "reality-checker"],
-      "visual": ["evidence-collector", "ui-designer", "architect-ux"],
+      "conformance": [
+        "code-reviewer",
+        "test-results-analyzer",
+        "evidence-collector"
+      ],
+      "adversarial": [
+        "application-security-engineer",
+        "api-tester"
+      ],
+      "regression": [
+        "test-results-analyzer",
+        "reality-checker"
+      ],
+      "visual": [
+        "evidence-collector",
+        "ui-designer",
+        "architect-ux"
+      ],
       "_visual_note": "4th angle — runs ONLY for UI-heavy stories (see qa.visual_qa). No dedicated visual-QA agent exists; it's composed: evidence-collector captures live screenshots across breakpoints + interaction states; ui-designer judges design-spec fidelity, spacing/hierarchy, and THEME-TOKEN adherence (off-theme rendering = the styling-convention defect made visible); architect-ux checks responsive layout + visual a11y (contrast, focus-visible, target size). Advisory: a clear functional-visual breakage routes back to dev; subjective polish only flags.",
       "verdict": "reality-checker",
       "live_evidence": "evidence-collector"
     }
+  },
+  "executor": {
+    "default": "claude",
+    "_default_note": "v3: which registered executor runs the engine's jobs — the model runtime is interchangeable (claude today; codex when its adapter lands). Every vendor CLI call lives inside its executor adapter; switch with `autodev executor <name>`."
+  },
+  "controller": {
+    "name": "marj",
+    "provider": "claude-code",
+    "model": "default",
+    "_note": "v3: Marj is the conversational controller — it interprets what you say and asks autoDev for structured actions through the Control API; autoDev decides. provider none = deterministic commands only. Executors (executor.default) do the work; the controller never does."
+  },
+  "brain": {
+    "enabled": false,
+    "project_id": null,
+    "url": null,
+    "_note": "v3: Brain is the standalone persistent-memory system (separate repo/service). enabled=false = the engine runs with no Brain (v2 behavior). When enabled, autoDev connects through the Brain API at url and records/reads scoped project knowledge under project_id. Never a credential here — those live in the OS keychain."
   }
 }
