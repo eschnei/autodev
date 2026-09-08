@@ -69,7 +69,8 @@ dis() { [[ "$(docs_decision "$1" "$2")" == "$3" ]]; }
 check "Edit AGENTS.md denied"                          dis Edit 'AGENTS.md' deny
 check "Write AGENTS.md denied"                         dis Write 'AGENTS.md' deny
 check "Edit CLAUDE.md denied"                          dis Edit 'CLAUDE.md' deny
-check "absolute path /repo/CLAUDE.md denied"           dis Edit '/some/repo/CLAUDE.md' deny
+check "absolute path inside the autoDev repo denied"   dis Edit "$R/CLAUDE.md" deny
+check "absolute path in some unrelated repo is not autoDev's business" dis Edit '/some/repo/CLAUDE.md' allow
 check ".claude/CLAUDE.md denied"                       dis Edit '.claude/CLAUDE.md' deny
 check "nested docs/AGENTS.md denied (any directory)"   dis Edit 'docs/AGENTS.md' deny
 check "README.md allowed"                              dis Edit 'README.md' allow
@@ -79,7 +80,10 @@ check "AGENTS.markdown allowed (different extension)"  dis Edit 'AGENTS.markdown
 check ".autodev/conventions.md allowed"                dis Write '.autodev/conventions.md' allow
 check "Bash tool is ignored"                           dis Bash 'AGENTS.md' allow
 check_no_out "empty file_path prints nothing"          bash -c "hook_input Edit '{}' '$R' | bash '$DOCS'"
-check "docs guard applies even in an unconfigured repo (hard rule)" bash -c "hook_input Edit '{\"file_path\":\"CLAUDE.md\"}' '$RU' | bash '$DOCS' | jq -e '.hookSpecificOutput.permissionDecision==\"deny\"'"
+check_no_out "docs guard does NOT apply in a repo autoDev does not operate (2.3.1: the rule binds autoDev, not the machine)" bash -c "hook_input Edit '{\"file_path\":\"CLAUDE.md\"}' '$RU' | bash '$DOCS'"
+check "…but it does inside an autoDev job, even with no .autodev/ (v3 sidecar project)" bash -c "hook_input Write '{\"file_path\":\"CLAUDE.md\"}' '$RU' | AUTODEV_BOARD_DIR=/x bash '$DOCS' | jq -e '.hookSpecificOutput.permissionDecision==\"deny\"'"
+check "…and for an absolute path inside an autoDev project, whatever the cwd" bash -c "hook_input Edit '{\"file_path\":\"$R/docs/../CLAUDE.md\"}' '$RU' | bash '$DOCS' | jq -e '.hookSpecificOutput.permissionDecision==\"deny\"'"
+check_no_out "a CLAUDE.md in an unrelated absolute path is allowed" bash -c "hook_input Write '{\"file_path\":\"$RU/CLAUDE.md\"}' '$R' | bash '$DOCS'"
 check_out "deny reason cites non-negotiable 11"        "non-negotiable 11" bash -c "hook_input Edit '{\"file_path\":\"CLAUDE.md\"}' '$R' | bash '$DOCS'"
 
 exit $FAIL
